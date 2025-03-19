@@ -77,8 +77,7 @@ def save_history_callback(model, history, hyperparams=None, name=None):
 
 def save_resulting_callback(model, metrics, hyperparams=None, name=None):
     '''
-    Saves the test results to json files
-    It is assumed that the file name has the format `model_name-iter.json`, where iter is an iteration of the test or model
+    Save the test results to json files
     '''
     data = get_clear_metrics(metrics)
     
@@ -97,5 +96,4 @@ def save_resulting_callback(model, metrics, hyperparams=None, name=None):
     else:
         with open(f'{LOGS_PATH}\\{name}.json', 'w') as outFile:
             json.dump(pc, outFile, indent=4)
-    
     

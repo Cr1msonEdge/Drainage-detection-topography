@@ -5,7 +5,7 @@ from helper.callbacks.visualize import show_prediction
 from helper.models.config import Config
 from os import listdir
 from os.path import isfile, join
-from helper.trainval.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
+from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
 import matplotlib.pyplot as plt
 from IPython import display
 from tqdm import tqdm
