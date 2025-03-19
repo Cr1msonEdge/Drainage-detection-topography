@@ -1,8 +1,7 @@
 albumentations==1.4.24
 ipython==9.0.1
 matplotlib==3.10.1
-matplotlib==3.10.1
-numpy==2.2.3
+neptune==1.13.0
 numpy==2.2.3
 pandas==2.2.3
 seaborn==0.13.2

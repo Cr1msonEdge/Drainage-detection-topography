@@ -20,7 +20,7 @@ class BaseModel():
         print(f"Initialized {model_name}")
 
     def save(self):
-        save(self.model.state_dict(), f"{MODELS_PATH}\\{self.model_name}-{self.counter}.pt")
+        save(self.model.state_dict(), f"{MODELS_PATH}\\{self.model_name}\\{self.model_name}-{self.counter}.pt")
     
     def load(self, path=None):
         if path is None:
@@ -199,8 +199,6 @@ class BaseModel():
         ax.legend()
         
         with tqdm(desc="epoch", total=config.NUM_EPOCHS) as pbar_outer:
-            optimizer = config.optimizer
-            criterion = config.criterion
             scheduler = None
             if 'scheduler' in config.get_params().keys():
                 scheduler = config.scheduler
@@ -255,7 +253,14 @@ class BaseModel():
     
     def predict(self, image, mask, device, show_full=False, show=False):
         """
-        Returns model's predict. Shows the prediction, original mask and intersection if needed
+        Return model's predict. 
+        
+        Params:
+            image: source image
+            mask: source mask
+            device: the device where the model is situated
+            show_full: if True shows original mask, prediction and intersection
+            show: if True plots the prediction
         """
         assert not(show_full and not(show)), "Show can't be true, while show_full is mode is active"
         self.model.eval()  
