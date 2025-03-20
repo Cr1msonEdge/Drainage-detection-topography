@@ -1,5 +1,6 @@
 albumentations==1.4.24
 ipython==9.0.1
+lightning==2.5.0.post0
 matplotlib==3.10.1
 neptune==1.13.0
 numpy==2.2.3
