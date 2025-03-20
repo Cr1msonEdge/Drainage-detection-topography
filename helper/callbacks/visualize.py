@@ -1,4 +1,4 @@
-from helper.data.dataobj import DrainageDataset
+from helper.dataobj import DrainageDataset
 from numpy import transpose, logical_and
 import json
 import os

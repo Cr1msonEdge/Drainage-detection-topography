@@ -121,7 +121,7 @@ class BaseModel():
         Params
         :dataloader: - dataloader of images and masks
         :config: - config that contains optimizer, criterion, learning rate, scheduler etc.
-        :device: - 'cuda' or 'cpu' - 
+        :device: - 'cuda' or 'cpu' 
         """
         self.model.to(device)
         test_loss = 0.0
