@@ -6,7 +6,7 @@ from .basemodel import MODELS_PATH, get_counter, BaseModel
 from torch import argmax, unsqueeze, no_grad
 import torch.nn.functional as F
 from helper.callbacks.visualize import show_prediction
-from helper.trainval.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
+from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
 from helper.models.config import Config
 import matplotlib.pyplot as plt
 from IPython import display

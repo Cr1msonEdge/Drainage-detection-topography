@@ -1,6 +1,6 @@
 from torch import load, save
 from pathlib import Path
-import datetime
+import uuid
 
 
 MODEL_NAMES = [
@@ -13,6 +13,8 @@ MODEL_NAMES = [
 ]
 def get_model_folder(name, verbose=-1):
     """
+    Return model's folder
+    
     Params:
     verbose: if -1, no prints are allowed. If 0, only errors are printed. If 1, everything is printed
     """
@@ -39,33 +41,41 @@ def get_model_folder(name, verbose=-1):
     
     return model_folder 
     
+
+def get_model_filename(name):
+    assert name is not None, "Model name can't be None."
+    assert name in MODEL_NAMES, "Model {name} not found in available models' list."
     
-def save_model(model, run_id, verbose=-1):
-    model_name = model.get_name()
-    try:
-        model_folder = get_model_folder(model_name)
-    except:
-        print("Got wrong model name or model is unknown. Returning")
-        return
+    unique_id = str(uuid.uuid4())[:8]
+    return name + '-' + unique_id
+
+# ! Deprecated
+# def save_model(model, run_id, verbose=-1):
+#     model_name = model.get_name()
+#     try:
+#         model_folder = get_model_folder(model_name)
+#     except:
+#         print("Got wrong model name or model is unknown. Returning")
+#         return
     
-    file_name = f"{model_folder}-{run_id}.pt"
-    save(model.state_dict(), file_name)
+#     file_name = f"{model_folder}-{run_id}.pt"
+#     save(model.state_dict(), file_name)
     
-    if verbose != -1:
-        print('Save completed.')
+#     if verbose != -1:
+#         print('Save completed.')
     
 
-def load_state_dict(name):
-    model_name = name[:name.find('-')]
-    assert model_name in MODEL_NAMES, f"Model name {name} is not correct."
-    try:
-        model_folder = get_model_folder(model_name)
-    except:
-        print("Got wrong model name or model is unknown. Returning")
-        return
+# def load_state_dict(name):
+#     model_name = name[:name.find('-')]
+#     assert model_name in MODEL_NAMES, f"Model name {name} is not correct."
+#     try:
+#         model_folder = get_model_folder(model_name)
+#     except:
+#         print("Got wrong model name or model is unknown. Returning")
+#         return
     
-    state_dict = load(model_folder / model_name)
-    return state_dict
+#     state_dict = load(model_folder / model_name)
+#     return state_dict
 
 
 if __name__ == '__main__':
