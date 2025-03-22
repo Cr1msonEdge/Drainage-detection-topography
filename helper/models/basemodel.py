@@ -16,6 +16,7 @@ import abc
 from helper.models.config import Config
 from torch.optim import Adam, AdamW, SGD
 from torch.optim.lr_scheduler import ReduceLROnPlateau, MultiStepLR
+import uuid
 
 
 MODELS_PATH = str(pathlib.Path(__file__).parent.resolve()) + '/saved'
@@ -45,7 +46,11 @@ class BaseModel(pl.LightningModule):
         self.validation_step_loss = []
         self.validation_step_metric = []
         
-        
+        self.unique_id = str(uuid.uuid4())[:8]
+
+    def set_id(self, id):
+        self.unique_id = id
+    
     @abc.abstractmethod
     def forward(self, images):
         pass
@@ -92,7 +97,6 @@ class BaseModel(pl.LightningModule):
         self.log('avg_train_loss', avg_train_loss)
         self.log('avg_train_metric', avg_train_metric)
 
-        # Очищаем аккумуляторы для новой эпохи
         self.training_step_loss.clear()
         self.training_step_metric.clear()
     
@@ -103,7 +107,6 @@ class BaseModel(pl.LightningModule):
         self.log('avg_val_loss', avg_validation_loss)
         self.log('avg_val_metric', avg_validation_metric)
 
-        # Очищаем аккумуляторы для новой эпохи
         self.validation_step_loss.clear()
         self.validation_step_metric.clear()
     

@@ -42,12 +42,33 @@ def get_model_folder(name, verbose=-1):
     return model_folder 
     
 
-def get_model_filename(name):
-    assert name is not None, "Model name can't be None."
-    assert name in MODEL_NAMES, "Model {name} not found in available models' list."
+def get_model_file_path(name, verbose=-1):
+    """
+    Get full path to model's checkpoint file
     
-    unique_id = str(uuid.uuid4())[:8]
-    return name + '-' + unique_id
+    It is assumed that name is written in the form: "model-uid.ckpt".
+    """
+    assert name is not None, "Model name can't be None."
+    assert name[:name.find('-')] in MODEL_NAMES, "Model {name} not found in available models' list."
+    
+    curr_file = Path(__file__).resolve()
+    saved_models_dir = curr_file.parent.parent / 'helper' / 'models' / 'saved' / name[:name.find('-')]
+    
+    if not saved_models_dir.exists():
+        if verbose != -1:
+            print(f"Model {name} is not found. Model's {name} folder is not found.")
+            return
+    
+    models_path = saved_models_dir / name
+    print(f"{models_path} asd")
+    if models_path.exists():
+        if verbose != -1:
+            print(f"Successfully found model {name}.")
+            return models_path
+    else:
+        print(f"Model {name} is not found.")
+        return
+
 
 # ! Deprecated
 # def save_model(model, run_id, verbose=-1):
@@ -79,5 +100,5 @@ def get_model_filename(name):
 
 
 if __name__ == '__main__':
-    print(get_model_folder('Unet', verbose=1))
+    print(get_model_file_path('Unet-12234.ckpt', verbose=1))
     
