@@ -15,12 +15,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 class NvidiaSegformer(BaseModel):
-    def __init__(self, device=None):
+    def __init__(self, config: Config):
         super().__init__('NvidiaSegformer')
-        if device is None:
-            self.device = 'cuda' if is_available() else 'cpu'
-        else:
-            self.device = device
             
         self.id2label = {0: 'background', 1: 'drainage'}
         self.label2id = {label: id for id, label in self.id2label.items()}

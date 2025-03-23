@@ -9,8 +9,9 @@ MODEL_NAMES = [
     "Unet++",
     "Segformer",
     "DeepLabV3"
-    
 ]
+
+
 def get_model_folder(name, verbose=-1):
     """
     Return model's folder

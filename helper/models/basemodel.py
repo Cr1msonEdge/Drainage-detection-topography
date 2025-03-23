@@ -48,6 +48,9 @@ class BaseModel(pl.LightningModule):
         
         self.unique_id = str(uuid.uuid4())[:8]
 
+        # Setting device
+        self.device = config.device
+        
     def set_id(self, id):
         self.unique_id = id
     
@@ -89,6 +92,20 @@ class BaseModel(pl.LightningModule):
             'val_metric': metric
         }        
         
+    def test_step(self, batch, batch_idx):
+        images, masks = batch
+        outputs = self.forward(images)
+        loss = self.loss(outputs, masks)
+        self.log('test_loss', loss, on_step=True)
+
+        preds = argmax(outputs, dim=1)
+        metric = get_iou(preds, masks)
+        self.log('test_metric', metric, on_step=True)
+        
+        return {
+            'test_loss': loss,
+            'test_metric': metric
+        }        
     
     def on_train_epoch_end(self):
         avg_train_loss = sum(self.train_step_loss) / len(self.train_step_loss)

@@ -9,20 +9,16 @@ import matplotlib.pyplot as plt
 from IPython import display
 from tqdm import tqdm
 import torch.nn.functional as F
+from helper.models.config import *
 
 
 class UNet(BaseModel):
-    def __init__(self, type=None, device=None):
+    def __init__(self, config: Config, type=None):
         if type in ['Unet', 'UnetImageNet', 'Unet++']:
-            super().__init__(type)
+            super().__init__(type, config)
         else:
             print('Such type of UNet do not exist')
             return
-        
-        if device is None:
-            self.device = 'cuda' if is_available() else 'cpu'
-        else:
-            self.device = device
         
         # Getting model
         if type == 'Unet':    

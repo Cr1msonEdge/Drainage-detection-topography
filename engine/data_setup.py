@@ -2,6 +2,7 @@ from helper.dataobj import DrainageDataset
 from pathlib import Path
 import numpy as np
 from torch.utils.data import DataLoader
+from torch.cuda import is_available
 
 
 DATASET_NAMES = [
@@ -12,7 +13,7 @@ DATASET_NAMES = [
 def get_dataset_folder(name=None):
     # ? Probably add some default dataset in future
     assert name is not None, "Dataset name shouldn't be empty"
-    curr_file = Path(__file__).resolve()  # 
+    curr_file = Path(__file__).resolve()  
     current_dir = curr_file.parent.parent  # Getting project directory
     datasets_dir = current_dir / 'datasets'
     
@@ -28,10 +29,20 @@ def get_dataset_folder(name=None):
     
     return datasets_dir / name
         
+        
 def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_workers=4):
+    """
+    Return dataloader
+    
+    Params:
+    mode - train or test. If test, no augmentation is applied to images
+    name - name of the file for a dataset
+    """
     assert mode in ['train', 'tests'], f"Mode {mode} is invalid."
     assert device in ['cpu', 'cuda', None], f"Device {device} is invalid."
-        
+    
+    if device is None:
+        device = 'cuda' if is_available() else 'cpu'
         
     if name == None:
         name = DATASET_NAMES[0]

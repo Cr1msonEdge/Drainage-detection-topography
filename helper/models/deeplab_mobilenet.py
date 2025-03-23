@@ -11,15 +11,12 @@ from tqdm import tqdm
 from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
 import torch.nn.functional as F
 from helper.callbacks.visualize import show_prediction
+from helper.models.config import *
 
         
 class DeepLab(BaseModel):
-    def __init__(self, device=None):
+    def __init__(self, config: Config):
         super().__init__("DeepLabV3")
-        if device is None:
-            self.device = 'cuda' if is_available() else 'cpu'
-        else:
-            self.device = device
         
         self.model = deeplabv3_mobilenet_v3_large(pretrained=True)
         self.model.classifier[4] = Conv2d(256, 2, kernel_size=1)
