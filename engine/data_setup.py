@@ -6,7 +6,7 @@ from torch.cuda import is_available
 
 
 DATASET_NAMES = [
-    "dataset_hard"
+    "dataset_plot_light"
 ]
 
 
@@ -22,7 +22,10 @@ def get_dataset_folder(name=None):
         for fold in datasets_dir.iterdir():
             print(fold.name)
             datasets_lists.append(fold.name)
-            
+    else:
+        print(f"Folder {datasets_dir} doesn't exist.")
+        return
+
     if name not in datasets_lists:
         print(f"Dataset {name} not found.")
         return
@@ -30,7 +33,7 @@ def get_dataset_folder(name=None):
     return datasets_dir / name
         
         
-def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_workers=4):
+def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_workers=0):
     """
     Return dataloader
     
@@ -44,7 +47,7 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
     if device is None:
         device = 'cuda' if is_available() else 'cpu'
         
-    if name == None:
+    if name is None:
         name = DATASET_NAMES[0]
         
     data_dir = get_dataset_folder(name) / mode
@@ -53,8 +56,8 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
         data_folder_content = [i.name for i in data_dir.iterdir()]
         
         if "images.npy" in data_folder_content and "masks.npy" in data_folder_content:
-            images = np.load(f"data_dir/{images.npy}")
-            masks = np.load(f"data_dir/{masks.npy}")
+            images = np.load(f"{data_dir}/images.npy")
+            masks = np.load(f"{data_dir}/masks.npy")
             
             data = DrainageDataset(images=images, masks=masks, mode=mode)
             dataloader = DataLoader(dataset=data, batch_size=batch_size, num_workers=num_workers)

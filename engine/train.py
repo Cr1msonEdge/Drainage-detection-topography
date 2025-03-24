@@ -1,22 +1,28 @@
 import argparse
 from helper.models.config import Config
 from engine.model_utils import *
+from helper.callbacks.metrics import NeptuneCallback
 from helper.models.unet import *
 from helper.models.deeplab_mobilenet import *
 from helper.models.nvidia_ade20k import *
 from engine.data_setup import *
 from engine.model_utils import *
-from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import NeptuneLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
+from lightning.pytorch import Trainer
+from lightning.pytorch.loggers import NeptuneLogger
+from lightning.pytorch.callbacks import ModelCheckpoint
 from helper.api_key import *
 
 
-def run_training(model_name, config: Config):
+def run_training(model_name, config: Config, tags=None, description=None):
+
     """
     Run training
     
+    Params:
+    
     """
+    print("=== Starting training ===")
+    print("=== Creating model === ")
     # Setting up model
     assert model_name in MODEL_NAMES, f"Model {model_name} is not found."
     if "Unet" in model_name:
@@ -25,10 +31,13 @@ def run_training(model_name, config: Config):
         model = NvidiaSegformer(config)
     else:
         model = DeepLab(config)
-        
+    
+    print("=== Setting up dataloader === ")
     # Getting dataloader
     dataloader = get_dataloader(mode='train', device=config.device, batch_size=config.BATCH_SIZE)
     
+    
+    print("=== Setting up Neptune === ")
     # Setting up Neptune
     neptune_logger = NeptuneLogger(
         project=PROJECT_NAME,
@@ -36,6 +45,7 @@ def run_training(model_name, config: Config):
         log_model_checkpoints=True
     )
     
+    print("=== Creating checkpoint ===")
     # Saving model
     checkpoint_callback = ModelCheckpoint(
         dirpath=get_model_folder(model_name, verbose=0),
@@ -44,9 +54,21 @@ def run_training(model_name, config: Config):
         monitor='val_loss'
     )
 
+    # Adding additional information
+    neptune_logger.experiment["sys/tags"].add("segmentation")
+    neptune_logger.experiment["sys/tags"].add(model_name)
+    neptune_logger.experiment["extra/info"] = {
+        "notes": "Fixing bugs",
+        # "config": config.to_dict()
+    }
+
+    print("=== Training ===")
     # Training
-    trainer = Trainer(logger=neptune_logger, max_epochs=config.NUM_EPOCHS)
+    trainer = Trainer(logger=neptune_logger, max_epochs=config.NUM_EPOCHS, callbacks=[checkpoint_callback, NeptuneCallback()], devices=1, accelerator="gpu")
     trainer.fit(model, dataloader)
 
+    print("=== Training finished ===")
+    
+    
 if __name__ == "__main__":
     print('asd')

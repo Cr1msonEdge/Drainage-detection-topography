@@ -1,5 +1,42 @@
-from torch import sum, isnan, tensor
+from torch import sum, isnan, tensor, is_tensor
 import segmentation_models_pytorch as smp
+import lightning.pytorch as pl
+
+
+class NeptuneCallback(pl.Callback):
+    def on_train_epoch_end(self, trainer, pl_module):
+        # Получаем агрегированные метрики из trainer.callback_metrics
+        metrics = trainer.callback_metrics
+        if 'avg_train_loss' in metrics:
+            # Приводим к float, если необходимо, и указываем step=текущая эпоха
+            trainer.logger.experiment["train/avg_loss"].append(
+                metrics['avg_train_loss'].item(), step=trainer.current_epoch
+            )
+        if 'avg_train_metric' in metrics:
+            trainer.logger.experiment["train/avg_metric"].append(
+                metrics['avg_train_metric'].item(), step=trainer.current_epoch
+            )
+
+    def on_validation_epoch_end(self, trainer, pl_module):
+        metrics = trainer.callback_metrics
+        if 'avg_val_loss' in metrics:
+            trainer.logger.experiment["val/avg_loss"].append(
+                metrics['avg_val_loss'].item(), step=trainer.current_epoch
+            )
+        if 'avg_val_metric' in metrics:
+            trainer.logger.experiment["val/avg_metric"].append(
+                metrics['avg_val_metric'].item(), step=trainer.current_epoch
+            )
+
+    def on_test_epoch_end(self, trainer, pl_module):
+        metrics = trainer.callback_metrics
+        keys = ['avg_test_loss', 'avg_test_accuracy', 'avg_test_precision',
+                'avg_test_recall', 'avg_test_f1', 'avg_test_iou', 'avg_test_dice']
+        for key in keys:
+            if key in metrics:
+                trainer.logger.experiment[f"test/{key}"].append(
+                    metrics[key].item(), step=trainer.current_epoch
+                )
 
 
 def dice_score(preds, targets, smooth=1e-6):

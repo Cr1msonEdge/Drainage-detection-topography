@@ -1,24 +1,12 @@
 from segmentation_models_pytorch import Unet, UnetPlusPlus
-from torch.cuda import is_available
-from os import listdir
-from os.path import isfile, join
-from .basemodel import MODELS_PATH, get_counter, BaseModel
-from torch import argmax, no_grad, unsqueeze, sigmoid, float
-from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
-import matplotlib.pyplot as plt
-from IPython import display
-from tqdm import tqdm
-import torch.nn.functional as F
+from .basemodel import BaseModel
 from helper.models.config import *
 
 
 class UNet(BaseModel):
     def __init__(self, config: Config, type=None):
-        if type in ['Unet', 'UnetImageNet', 'Unet++']:
-            super().__init__(type, config)
-        else:
-            print('Such type of UNet do not exist')
-            return
+        assert type in ['Unet', 'UnetImageNet', 'Unet++'], "Such type of UNet does not exist"
+        super().__init__(type, config)  # Вызов конструктора родителя
         
         # Getting model
         if type == 'Unet':    
@@ -43,11 +31,11 @@ class UNet(BaseModel):
                 classes=2
             )
         
-        self.model = self.model.to(self.device)
+        self.model = self.model.to(self.base_device)
                 
-        # Получение индекса
-        self.counter = get_counter(self.model_name)
-    
+    def forward(self, images):
+        return self.model(images)
+
     def compute_outputs(self, image):
         return super().compute_outputs(image)
     

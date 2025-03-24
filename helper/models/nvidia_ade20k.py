@@ -1,17 +1,7 @@
 from transformers import SegformerForSemanticSegmentation, SegformerFeatureExtractor
-from torch.cuda import is_available
-from os import listdir
-from os.path import isfile, join
-from .basemodel import MODELS_PATH, get_counter, BaseModel
-from torch import argmax, unsqueeze, no_grad
+from .basemodel import BaseModel
 import torch.nn.functional as F
-from helper.callbacks.visualize import show_prediction
-from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
 from helper.models.config import Config
-import matplotlib.pyplot as plt
-from IPython import display
-from tqdm import tqdm
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 class NvidiaSegformer(BaseModel):
@@ -23,13 +13,11 @@ class NvidiaSegformer(BaseModel):
         
         self.model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b1-finetuned-ade-512-512", num_labels=2, ignore_mismatched_sizes=True, id2label=self.id2label, label2id=self.label2id)
         self.model.init_weights()
-        self.model.to(self.device)
+        self.model.to(self.base_device)
         
         # Changing image size to 256x256 when initializing feature extraction
         self.feature_extractor = SegformerFeatureExtractor(do_resize=True, size=(256, 256))
-        
-        # Getting counter
-        self.counter = get_counter(self.model_name)
+
         
     def compute_outputs(self, images):
         outputs = self.model(images).logits

@@ -1,4 +1,4 @@
-from torch import save, load, unsqueeze, argmax, no_grad, stack
+from torch import save, load, unsqueeze, argmax, no_grad, stack, is_tensor
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 import pathlib
@@ -17,39 +17,49 @@ from helper.models.config import Config
 from torch.optim import Adam, AdamW, SGD
 from torch.optim.lr_scheduler import ReduceLROnPlateau, MultiStepLR
 import uuid
+import os
 
 
 MODELS_PATH = str(pathlib.Path(__file__).parent.resolve()) + '/saved'
 
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, model_name, config=Config(), verbose=0):
+    def __init__(self, model_name, config=Config()):
+        super().__init__()
         self.model_name = model_name
         print(f"Initialized {model_name}")
         
         self.config = config
-        if self.config.loss == 'CrossEntropy':
-            self.loss = CrossEntropyLoss    
-        print(f"{model_name} initialized with hyperparams: {config.get_params()}")
+        if self.config.criterion == 'CrossEntropy':
+            self.loss = CrossEntropyLoss()
+        print(f"{model_name} initialized with hyperparams: {config.to_dict()}")
         
-        # Saving hparamas to log
+        # Saving hparams to log
         hparams = {
             'name': model_name, 
             **self.config.to_dict()
         }
-        self.save_hyperparameters(**hparams)
+        self.save_hyperparameters(hparams)
         
-        # Saving output during epoch
-        
+        # Saving metrics during epoch
         self.training_step_loss = []
         self.training_step_metric = []
+        
         self.validation_step_loss = []
         self.validation_step_metric = []
+        
+        self.test_step_loss = []
+        self.test_step_accuracy = []
+        self.test_step_precision = []
+        self.test_step_recall = []
+        self.test_step_f1 = []
+        self.test_step_iou = []
+        self.test_step_dice = []
         
         self.unique_id = str(uuid.uuid4())[:8]
 
         # Setting device
-        self.device = config.device
+        self.base_device = config.device
         
     def set_id(self, id):
         self.unique_id = id
@@ -60,33 +70,40 @@ class BaseModel(pl.LightningModule):
     
     def training_step(self, batch, batch_idx):
         images, masks = batch
+        masks = masks.squeeze()
         outputs = self.forward(images)
         loss = self.loss(outputs, masks)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         self.training_step_loss.append(loss)
-        
+        self.logger.experiment["train/loss"].append(loss.item())
+
         lr = self.trainer.optimizers[0].param_groups[0]['lr']
         self.log('lr', lr, on_step=True, on_epoch=False, prog_bar=True)
+        self.logger.experiment["train/lr"].append(lr)
 
         preds = argmax(outputs, dim=1)
         metric = get_iou(preds, masks)
-        self.log('train_metric', metric, on_step=True, on_epoch=True, prog_bar=True)   
+        self.log('train_metric', metric, on_step=True, on_epoch=True, prog_bar=True)
         self.training_step_metric.append(metric)
-        
+        self.logger.experiment["train/metric"].append(metric)
+
         return loss
     
     def validation_step(self, batch, batch_idx):
         images, masks = batch
+        masks = masks.squeeze()
         outputs = self.forward(images)
         loss = self.loss(outputs, masks)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         self.validation_step_loss.append(loss)
+        self.logger.experiment["val/loss"].append(loss.item())
 
         preds = argmax(outputs, dim=1)
         metric = get_iou(preds, masks)
         self.log('val_metric', metric, on_step=True, on_epoch=True, prog_bar=True)
         self.validation_step_metric.append(metric)
-        
+        self.logger.experiment["val/metric"].append(metric)
+
         return {
             'val_loss': loss,
             'val_metric': metric
@@ -94,22 +111,49 @@ class BaseModel(pl.LightningModule):
         
     def test_step(self, batch, batch_idx):
         images, masks = batch
+        masks = masks.squeeze()
         outputs = self.forward(images)
         loss = self.loss(outputs, masks)
         self.log('test_loss', loss, on_step=True)
-
+        self.test_step_loss.append(loss)
+        
         preds = argmax(outputs, dim=1)
-        metric = get_iou(preds, masks)
-        self.log('test_metric', metric, on_step=True)
+        
+        accuracy = get_acc(preds, masks)
+        precision = get_prec(preds, masks)
+        recall = get_recall(preds, masks)
+        f1 = get_f1(preds, masks)
+        iou = get_iou(preds, masks)
+        dice = get_dice(preds, masks)
+        
+        
+        self.log('test_accuracy', accuracy, on_step=True)
+        self.log('test_precision', precision, on_step=True)
+        self.log('test_recall', recall, on_step=True)
+        self.log('test_f1', f1, on_step=True)
+        self.log('test_iou', iou, on_step=True)
+        self.log('test_dice', dice, on_step=True)
+        self.test_step_accuracy.append(accuracy)
+        self.test_step_precision.append(precision)
+        self.test_step_recall.append(recall)
+        self.test_step_f1.append(f1)
+        self.test_step_iou.append(iou)
+        self.test_step_dice.append(dice)
+        
         
         return {
             'test_loss': loss,
-            'test_metric': metric
+            'test_accuracy': accuracy, 
+            'test_precision': precision, 
+            'test_recall': recall, 
+            'test_f1': f1, 
+            'test_iou': iou, 
+            'test_dice': dice, 
         }        
     
     def on_train_epoch_end(self):
-        avg_train_loss = sum(self.train_step_loss) / len(self.train_step_loss)
-        avg_train_metric = sum(self.train_step_metric) / len(self.train_step_metric)
+        avg_train_loss = sum(self.training_step_loss) / len(self.training_step_loss)
+        avg_train_metric = sum(self.training_step_metric) / len(self.training_step_metric)
         
         self.log('avg_train_loss', avg_train_loss)
         self.log('avg_train_metric', avg_train_metric)
@@ -127,7 +171,83 @@ class BaseModel(pl.LightningModule):
         self.validation_step_loss.clear()
         self.validation_step_metric.clear()
     
-    
+    def on_test_epoch_end(self):
+        avg_test_loss = sum(self.test_step_loss) / len(self.test_step_loss)
+        avg_test_accuracy = sum(self.test_step_accuracy) / len(self.test_step_accuracy)
+        avg_test_precision = sum(self.test_step_precision) / len(self.test_step_precision)
+        avg_test_recall = sum(self.test_step_recall) / len(self.test_step_recall)
+        avg_test_f1 = sum(self.test_step_f1) / len(self.test_step_f1)
+        avg_test_iou = sum(self.test_step_iou) / len(self.test_step_test_step_iouaccuracy)
+        avg_test_dice = sum(self.test_step_dice) / len(self.test_step_dice)
+
+        self.log('avg_test_loss', avg_test_loss)
+        self.log('avg_test_accuracy', avg_test_accuracy)
+        self.log('avg_test_precision', avg_test_precision)
+        self.log('avg_test_recall', avg_test_recall)
+        self.log('avg_test_f1', avg_test_f1)
+        self.log('avg_test_iou', avg_test_iou)
+        self.log('avg_test_dice', avg_test_dice)
+
+        avg_test_loss = sum(self.test_step_loss) / len(self.test_step_loss)
+        avg_test_accuracy = sum(self.test_step_accuracy) / len(self.test_step_accuracy)
+        avg_test_precision = sum(self.test_step_precision) / len(self.test_step_precision)
+        avg_test_recall = sum(self.test_step_recall) / len(self.test_step_recall)
+        avg_test_f1 = sum(self.test_step_f1) / len(self.test_step_f1)
+        avg_test_iou = sum(self.test_step_iou) / len(self.test_step_iou)
+        avg_test_dice = sum(self.test_step_dice) / len(self.test_step_dice)
+
+        self.log('avg_test_loss', avg_test_loss)
+        self.log('avg_test_accuracy', avg_test_accuracy)
+        self.log('avg_test_precision', avg_test_precision)
+        self.log('avg_test_recall', avg_test_recall)
+        self.log('avg_test_f1', avg_test_f1)
+        self.log('avg_test_iou', avg_test_iou)
+        self.log('avg_test_dice', avg_test_dice)
+
+        # Создаем словарь с итоговыми тестовыми метриками
+        test_metrics = {
+            "loss": avg_test_loss,
+            "accuracy": avg_test_accuracy,
+            "precision": avg_test_precision,
+            "recall": avg_test_recall,
+            "f1": avg_test_f1,
+            "iou": avg_test_iou,
+            "dice": avg_test_dice,
+        }
+
+        # Сохраняем столбчатую диаграмму
+        tmp_dir = "tmp_images"
+        os.makedirs(tmp_dir, exist_ok=True)
+        chart_path = os.path.join(tmp_dir, f"test_metrics_bar_chart{self.model_name}-{self.unique_id}.png")
+        self.save_test_metrics_bar_chart(test_metrics, chart_path)
+
+        # Загружаем диаграмму в Neptune
+        self.logger.experiment["test/metrics_bar_chart"].upload(chart_path)
+
+    @staticmethod
+    def save_test_metrics_bar_chart(test_metrics, save_path):
+        """
+        test_metrics: dict, where key is - name of metric, value - float value.
+        save_path: path to save image
+        """
+        metric_names = list(test_metrics.keys())
+        values = [test_metrics[name] for name in metric_names]
+
+        plt.figure(figsize=(8, 6))
+        bars = plt.bar(metric_names, values, color='skyblue')
+        plt.xlabel('Метрики')
+        plt.ylabel('Значение')
+        plt.title('Результаты тестирования')
+
+        # Добавим подписи на столбцах
+        for bar in bars:
+            yval = bar.get_height()
+            plt.text(bar.get_x() + bar.get_width() / 2, yval, f'{yval:.2f}', va='bottom', ha='center')
+
+        plt.tight_layout()
+        plt.savefig(save_path)
+        plt.close()
+
     def configure_optimizers(self):
         if self.config.optimizer == 'Adam':
             optimizer = Adam(self.model.parameters(), lr=self.config.LEARNING_RATE)
@@ -158,7 +278,7 @@ class BaseModel(pl.LightningModule):
                 )    
         
         return optimizer
-        
+
             
 #     def save(self):
 #         save(self.model.state_dict(), f"{MODELS_PATH}\\{self.model_name}\\{self.model_name}-{self.counter}.pt")

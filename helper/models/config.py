@@ -17,10 +17,11 @@ class Config:
         # Setting device 
         if device is None:
             device = 'cuda' if is_available() else 'cpu'
-        
+        self.device = device
+
         # Setting optimizer        
-        assert opt in ['Adam', 'AdamW', 'SGD'], f"Optimizer {opt} is not from list of Optimizers"
-        self.optimizer = opt
+        assert opt in ['Adam', 'AdamW', 'SGD', None], f"Optimizer {opt} is not from list of Optimizers"
+        self.optimizer = opt if opt is not None else 'Adam'
 
         # Setting scheduler
         assert self.scheduler in ['Plateau', 'MultistepLR', None]
@@ -42,21 +43,20 @@ class Config:
                     }
             
         # Setting criterions 
+        # ? Add another loss function?
         assert crit in [None, 'CrossEntropy'], f"Criterion {crit} is not from list of Criterions"
-        self.criterion = crit
+        self.criterion = crit if crit is not None else "CrossEntropy"
         
     def __str__(self):
         return f"Epochs: {self.NUM_EPOCHS}, lr: {self.LEARNING_RATE}, batch_size: {self.BATCH_SIZE}, optimizer: {self.optimizer}, criterion: {self.criterion}"
     
-    def get_params(self):
+    def to_dict(self):
         return {
             'num_epochs': self.NUM_EPOCHS,
             'batch_size': self.BATCH_SIZE,
             'opt': type(self.optimizer).__name__,
-            'crit': self.crit_name,
+            'crit': self.criterion,
             'learning_rate': self.LEARNING_RATE,
             'scheduler': self.scheduler,
         }
         
-
-    

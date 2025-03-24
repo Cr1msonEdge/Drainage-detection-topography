@@ -1,16 +1,6 @@
-from torch.cuda import is_available
-from os import listdir
-from os.path import isfile, join
-from .basemodel import MODELS_PATH, BaseModel, get_counter
+from .basemodel import BaseModel
 from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large
-from torch import argmax, unsqueeze, no_grad
 from torch.nn import Conv2d
-import matplotlib.pyplot as plt
-from IPython import display
-from tqdm import tqdm
-from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
-import torch.nn.functional as F
-from helper.callbacks.visualize import show_prediction
 from helper.models.config import *
 
         
@@ -20,10 +10,8 @@ class DeepLab(BaseModel):
         
         self.model = deeplabv3_mobilenet_v3_large(pretrained=True)
         self.model.classifier[4] = Conv2d(256, 2, kernel_size=1)
-        self.model = self.model.to(self.device)
-                
-        # Получение индекса
-        self.counter = get_counter(self.model_name)
+        self.model = self.model.to(self.base_device)
+
     
     def compute_outputs(self, images):
         return self.model(images)["out"]
