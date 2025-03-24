@@ -20,7 +20,7 @@ def get_dataset_folder(name=None):
     datasets_lists = []
     if datasets_dir.exists():
         for fold in datasets_dir.iterdir():
-            print(fold.name)
+            # print(fold.name)
             datasets_lists.append(fold.name)
     else:
         print(f"Folder {datasets_dir} doesn't exist.")
@@ -41,7 +41,7 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
     mode - train or test. If test, no augmentation is applied to images
     name - name of the file for a dataset
     """
-    assert mode in ['train', 'tests'], f"Mode {mode} is invalid."
+    assert mode in ['train', 'test'], f"Mode {mode} is invalid."
     assert device in ['cpu', 'cuda', None], f"Device {device} is invalid."
     
     if device is None:
@@ -65,9 +65,9 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
             return dataloader
 
         else:
-            print(f"Didn't find images.npy and masks.npy in Dataset:{name} folder.")
-            return
-    
+            raise Exception(f"Didn't find images.npy and masks.npy in Dataset: {name} folder.")
+    else:
+        raise Exception(f"{data_dir} doesn't exist.")
 
 if __name__ == "__main__":
     print(get_dataloader())

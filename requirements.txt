@@ -12,4 +12,3 @@ torch~=2.6.0+cu118
 torchvision==0.21.0
 tqdm==4.67.1
 transformers~=4.50.0
-

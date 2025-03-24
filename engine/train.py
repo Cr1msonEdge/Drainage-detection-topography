@@ -35,7 +35,7 @@ def run_training(model_name, config: Config, tags=None, description=None):
     print("=== Setting up dataloader === ")
     # Getting dataloader
     dataloader = get_dataloader(mode='train', device=config.device, batch_size=config.BATCH_SIZE)
-    
+    val_loader = get_dataloader(mode='test', device=config.device, batch_size=config.BATCH_SIZE)
     
     print("=== Setting up Neptune === ")
     # Setting up Neptune
@@ -54,6 +54,7 @@ def run_training(model_name, config: Config, tags=None, description=None):
         monitor='val_loss'
     )
 
+
     # Adding additional information
     neptune_logger.experiment["sys/tags"].add("segmentation")
     neptune_logger.experiment["sys/tags"].add(model_name)
@@ -65,10 +66,10 @@ def run_training(model_name, config: Config, tags=None, description=None):
     print("=== Training ===")
     # Training
     trainer = Trainer(logger=neptune_logger, max_epochs=config.NUM_EPOCHS, callbacks=[checkpoint_callback, NeptuneCallback()], devices=1, accelerator="gpu")
-    trainer.fit(model, dataloader)
+    trainer.fit(model, dataloader, val_dataloaders=val_loader)
 
     print("=== Training finished ===")
-    
+    print(f"Saved into {get_model_folder(model_name, verbose=-1)}/{model_name}-{model.unique_id}.ckpt")
     
 if __name__ == "__main__":
     print('asd')

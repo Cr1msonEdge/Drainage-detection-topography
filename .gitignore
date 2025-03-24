@@ -163,3 +163,5 @@ api_key.py
 
 images.npy
 masks.npy
+.helper\models\saved\Unet\Unet-6226583f.ckpt
+*.ckpt
