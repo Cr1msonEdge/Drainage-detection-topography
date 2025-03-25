@@ -57,18 +57,17 @@ def get_model_file_path(name, verbose=-1):
     
     if not saved_models_dir.exists():
         if verbose != -1:
-            print(f"Model {name} is not found. Model's {name} folder is not found.")
-            return
+            raise Exception(f"Model {name} is not found. Model's {name} folder is not found.")
+
     
     models_path = saved_models_dir / name
     print(f"{models_path} asd")
     if models_path.exists():
         if verbose != -1:
             print(f"Successfully found model {name}.")
-            return models_path
+        return models_path
     else:
-        print(f"Model {name} is not found.")
-        return
+        raise Exception(f"Model {name} is not found.")
 
 
 # ! Deprecated

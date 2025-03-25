@@ -4,8 +4,10 @@ from helper.models.config import *
 
 
 class UNet(BaseModel):
-    def __init__(self, config: Config, type=None):
-        assert type in ['Unet', 'UnetImageNet', 'Unet++'], "Such type of UNet does not exist"
+    def __init__(self, config: Config=None, type=None):
+        if type is None:
+            type = 'Unet'
+        assert type in ['Unet', 'UnetImageNet', 'Unet++'], f"Such type of UNet does not exist: {type}"
         super().__init__(type, config)  # Вызов конструктора родителя
         
         # Getting model

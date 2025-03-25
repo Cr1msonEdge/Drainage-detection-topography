@@ -24,15 +24,19 @@ MODELS_PATH = str(pathlib.Path(__file__).parent.resolve()) + '/saved'
 
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, model_name, config=Config()):
+    def __init__(self, model_name, config=None):
         super().__init__()
         self.model_name = model_name
         print(f"Initialized {model_name}")
-        
-        self.config = config
+
+        if config is None:
+            self.config = Config(**self.hparams)
+        else:
+            self.config = config
+
         if self.config.criterion == 'CrossEntropy':
             self.loss = CrossEntropyLoss()
-        print(f"{model_name} initialized with hyperparams: {config.to_dict()}")
+        print(f"{model_name} initialized with hyperparams: {self.config.to_dict()}")
         
         # Saving hparams to log
         hparams = {
@@ -59,7 +63,7 @@ class BaseModel(pl.LightningModule):
         self.unique_id = str(uuid.uuid4())[:8]
 
         # Setting device
-        self.base_device = config.device
+        self.base_device = self.config.device
         
     def set_id(self, id):
         self.unique_id = id
@@ -177,7 +181,7 @@ class BaseModel(pl.LightningModule):
         avg_test_precision = sum(self.test_step_precision) / len(self.test_step_precision)
         avg_test_recall = sum(self.test_step_recall) / len(self.test_step_recall)
         avg_test_f1 = sum(self.test_step_f1) / len(self.test_step_f1)
-        avg_test_iou = sum(self.test_step_iou) / len(self.test_step_test_step_iouaccuracy)
+        avg_test_iou = sum(self.test_step_iou) / len(self.test_step_iou)
         avg_test_dice = sum(self.test_step_dice) / len(self.test_step_dice)
 
         self.log('avg_test_loss', avg_test_loss)
@@ -231,7 +235,7 @@ class BaseModel(pl.LightningModule):
         save_path: path to save image
         """
         metric_names = list(test_metrics.keys())
-        values = [test_metrics[name] for name in metric_names]
+        values = [test_metrics[name].cpu() for name in metric_names]
 
         plt.figure(figsize=(8, 6))
         bars = plt.bar(metric_names, values, color='skyblue')

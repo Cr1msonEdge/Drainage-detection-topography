@@ -79,7 +79,12 @@ def get_prec(pred, label):
 
 def get_recall(pred, label):
     tp, fp, fn, tn = smp.metrics.get_stats(pred, label, mode='multilabel', threshold=0.5)
-    return smp.metrics.recall(tp, fp, fn, tn, reduction='micro')
+    result = smp.metrics.recall(tp, fp, fn, tn, reduction='micro')
+
+    if isnan(result):
+        return tensor(0.0)
+
+    return result
 
 
 def get_f1(pred, label):
