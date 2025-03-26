@@ -9,7 +9,7 @@ from engine.data_setup import *
 from engine.model_utils import *
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import NeptuneLogger
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import ModelCheckpoint, RichProgressBar
 from helper.api_key import *
 
 
@@ -70,6 +70,6 @@ def run_training(model_name, config: Config, tags=None, description=None):
 
     print("=== Training finished ===")
     print(f"Saved into {get_model_folder(model_name, verbose=-1)}/{model_name}-{model.unique_id}.ckpt")
-    
+    print(f"COnfig is {model.config}")
 if __name__ == "__main__":
     print('asd')

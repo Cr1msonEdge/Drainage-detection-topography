@@ -9,6 +9,9 @@ from os import listdir
 from os.path import isfile, join
 from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use("Agg")
+
 from IPython import display
 from tqdm import tqdm
 import lightning as pl
@@ -18,32 +21,53 @@ from torch.optim import Adam, AdamW, SGD
 from torch.optim.lr_scheduler import ReduceLROnPlateau, MultiStepLR
 import uuid
 import os
+import time
 
 
 MODELS_PATH = str(pathlib.Path(__file__).parent.resolve()) + '/saved'
 
 
 class BaseModel(pl.LightningModule):
+    _loaded_hparams = None
+
     def __init__(self, model_name, config=None):
         super().__init__()
         self.model_name = model_name
-        print(f"Initialized {model_name}")
 
-        if config is None:
-            self.config = Config(**self.hparams)
-        else:
+        # Setting up configuration
+        if config is not None:
             self.config = config
+            self.unique_id = config.uid
+            # Saving hparams to log
+            hparams = {
+                'name': model_name,
+                **self.config.to_dict(),
+                'uid': self.unique_id
+            }
 
+        else:
+            # Если config не передан (например, при load_from_checkpoint),
+            # попробуем восстановить гиперпараметры из класса
+            if self.hparams is None or self.hparams == {}:
+                if self.__class__._loaded_hparams is not None:
+                    # Присваиваем сохранённые гиперпараметры
+                    self.hparams.update(self.__class__._loaded_hparams)
+                    hparams = self._loaded_hparams
+                    # При необходимости создаем объект config из них:
+                    # Например, если у вас есть конструктор Config(**kwargs)
+                    self.config = Config(**self.__class__._loaded_hparams)
+                else:
+                    raise Exception(f"Fatal error: couldn't load model.")
+
+        self.save_hyperparameters(hparams)
+
+        # Common parameters for new model and a loaded one
         if self.config.criterion == 'CrossEntropy':
             self.loss = CrossEntropyLoss()
+
         print(f"{model_name} initialized with hyperparams: {self.config.to_dict()}")
-        
-        # Saving hparams to log
-        hparams = {
-            'name': model_name, 
-            **self.config.to_dict()
-        }
-        self.save_hyperparameters(hparams)
+
+
         
         # Saving metrics during epoch
         self.training_step_loss = []
@@ -60,7 +84,6 @@ class BaseModel(pl.LightningModule):
         self.test_step_iou = []
         self.test_step_dice = []
         
-        self.unique_id = str(uuid.uuid4())[:8]
 
         # Setting device
         self.base_device = self.config.device
@@ -71,6 +94,24 @@ class BaseModel(pl.LightningModule):
     @abc.abstractmethod
     def forward(self, images):
         pass
+    
+    @classmethod
+    def load_from_checkpoint(cls, checkpoint_path, **kwargs):
+        # Загружаем чекпоинт один раз, чтобы извлечь гиперпараметры
+        checkpoint = load(checkpoint_path, map_location="cpu")
+        # Если в чекпоинте есть гиперпараметры под ключом "hyper_parameters",
+        # передаем их в hparams_override, если он не был передан явно
+        if "hyper_parameters" in checkpoint:
+            cls._loaded_hparams = checkpoint["hyper_parameters"]
+        
+        if "optimizer_states" in checkpoint:
+            del checkpoint["optimizer_states"]
+        if "lr_schedulers" in checkpoint:
+            del checkpoint["lr_schedulers"]
+        # Сохраняем изменённый чекпоинт во временной переменной
+        # и передаём его в метод базового класса
+        # super().load_from_checkpoint()
+        return super(BaseModel, cls).load_from_checkpoint(checkpoint_path, **kwargs)
     
     def training_step(self, batch, batch_idx):
         images, masks = batch
@@ -98,7 +139,7 @@ class BaseModel(pl.LightningModule):
         masks = masks.squeeze()
         outputs = self.forward(images)
         loss = self.loss(outputs, masks)
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         self.validation_step_loss.append(loss)
         self.logger.experiment["val/loss"].append(loss.item())
 
@@ -130,21 +171,20 @@ class BaseModel(pl.LightningModule):
         iou = get_iou(preds, masks)
         dice = get_dice(preds, masks)
         
-        
         self.log('test_accuracy', accuracy, on_step=True)
         self.log('test_precision', precision, on_step=True)
         self.log('test_recall', recall, on_step=True)
         self.log('test_f1', f1, on_step=True)
         self.log('test_iou', iou, on_step=True)
         self.log('test_dice', dice, on_step=True)
+
         self.test_step_accuracy.append(accuracy)
         self.test_step_precision.append(precision)
         self.test_step_recall.append(recall)
         self.test_step_f1.append(f1)
         self.test_step_iou.append(iou)
         self.test_step_dice.append(dice)
-        
-        
+
         return {
             'test_loss': loss,
             'test_accuracy': accuracy, 
@@ -176,22 +216,7 @@ class BaseModel(pl.LightningModule):
         self.validation_step_metric.clear()
     
     def on_test_epoch_end(self):
-        avg_test_loss = sum(self.test_step_loss) / len(self.test_step_loss)
-        avg_test_accuracy = sum(self.test_step_accuracy) / len(self.test_step_accuracy)
-        avg_test_precision = sum(self.test_step_precision) / len(self.test_step_precision)
-        avg_test_recall = sum(self.test_step_recall) / len(self.test_step_recall)
-        avg_test_f1 = sum(self.test_step_f1) / len(self.test_step_f1)
-        avg_test_iou = sum(self.test_step_iou) / len(self.test_step_iou)
-        avg_test_dice = sum(self.test_step_dice) / len(self.test_step_dice)
-
-        self.log('avg_test_loss', avg_test_loss)
-        self.log('avg_test_accuracy', avg_test_accuracy)
-        self.log('avg_test_precision', avg_test_precision)
-        self.log('avg_test_recall', avg_test_recall)
-        self.log('avg_test_f1', avg_test_f1)
-        self.log('avg_test_iou', avg_test_iou)
-        self.log('avg_test_dice', avg_test_dice)
-
+        self.config.TEST_ITER += 1
         avg_test_loss = sum(self.test_step_loss) / len(self.test_step_loss)
         avg_test_accuracy = sum(self.test_step_accuracy) / len(self.test_step_accuracy)
         avg_test_precision = sum(self.test_step_precision) / len(self.test_step_precision)
@@ -222,7 +247,8 @@ class BaseModel(pl.LightningModule):
         # Сохраняем столбчатую диаграмму
         tmp_dir = "tmp_images"
         os.makedirs(tmp_dir, exist_ok=True)
-        chart_path = os.path.join(tmp_dir, f"test_metrics_bar_chart{self.model_name}-{self.unique_id}.png")
+        # unique_id = str(uuid.uuid4())[:4]
+        chart_path = os.path.join(tmp_dir, f"test-{self.model_name}-{self.unique_id}-{self.config.TEST_ITER}.png")
         self.save_test_metrics_bar_chart(test_metrics, chart_path)
 
         # Загружаем диаграмму в Neptune

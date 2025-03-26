@@ -2,18 +2,27 @@ from torch.optim import Adam, AdamW, SGD
 from torch.nn import CrossEntropyLoss, BCELoss, MSELoss
 from torch.optim.lr_scheduler import ReduceLROnPlateau, MultiStepLR
 from torch.cuda import is_available
+import time
+
 
 class Config:
     """
     Class for configs
     """
     
-    def __init__(self, opt=None, crit=None, lr=1e-4, num_epochs=100, batch_size=64, scheduler=None, device=None, scheduler_params=None):
+    def __init__(self, opt=None, crit=None, lr=1e-4, num_epochs=100, batch_size=64, scheduler=None, device=None, scheduler_params=None, uid=None, **kwargs):
         self.NUM_EPOCHS = num_epochs
         self.BATCH_SIZE = batch_size
         self.LEARNING_RATE = lr
         self.scheduler = scheduler
-        
+        self.TEST_ITER = 0
+        self.uid = uid
+
+        # Setting uid
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        if self.uid is None:
+            self.uid = timestamp
+
         # Setting device 
         if device is None:
             device = 'cuda' if is_available() else 'cpu'
@@ -41,7 +50,7 @@ class Config:
                         'milestones': [30, 80, 150],
                         'gamma': 0.3
                     }
-            
+
         # Setting criterions 
         # ? Add another loss function?
         assert crit in [None, 'CrossEntropy'], f"Criterion {crit} is not from list of Criterions"
@@ -52,11 +61,13 @@ class Config:
     
     def to_dict(self):
         return {
+            'uid': self.uid,
             'num_epochs': self.NUM_EPOCHS,
             'batch_size': self.BATCH_SIZE,
-            'opt': type(self.optimizer).__name__,
+            'opt': self.optimizer,
             'crit': self.criterion,
             'learning_rate': self.LEARNING_RATE,
             'scheduler': self.scheduler,
+            'test_iter': self.TEST_ITER
         }
         
