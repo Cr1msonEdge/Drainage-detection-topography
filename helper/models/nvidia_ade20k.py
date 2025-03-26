@@ -17,7 +17,7 @@ class NvidiaSegformer(BaseModel):
         self.model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b1-finetuned-ade-512-512", num_labels=2, ignore_mismatched_sizes=True, id2label=self.id2label, label2id=self.label2id)
         old_conv = self.model.segformer.encoder.patch_embeddings[0].proj
 
-        # Создадим новый сверточный слой с in_channels=4, сохраняя остальные параметры
+        # Creating 4 channels layer
         new_conv = nn.Conv2d(
             in_channels=4,
             out_channels=old_conv.out_channels,
@@ -27,19 +27,22 @@ class NvidiaSegformer(BaseModel):
             bias=(old_conv.bias is not None)
         )
 
+        # Getting pretrained weights for RGB channels. The 4th channel will be mean of 3 channels
         with torch.no_grad():
-            # Копируем веса для первых трёх каналов из предобученной модели
             new_conv.weight[:, :3, :, :] = old_conv.weight
-            # Инициализируем вес для 4-го канала как среднее по первым трем каналам
             new_conv.weight[:, 3:4, :, :] = old_conv.weight.mean(dim=1, keepdim=True)
             if old_conv.bias is not None:
                 new_conv.bias.copy_(old_conv.bias)
 
-        # Подменяем старый сверточный слой новым
         self.model.segformer.encoder.patch_embeddings[0].proj = new_conv
+        
+        # Freezing encoder except of first layer
+        for name, param in self.model.segformer.encoder.named_parameters():
+            if "patch_embeddings.0.projection" not in name:
+                param.requires_grad = False
+        
         self.model.to(self.base_device)
         
-        # Changing image size to 256x256 when initializing feature extraction
         self.feature_extractor = SegformerFeatureExtractor(do_resize=True, size=(256, 256))
 
         
