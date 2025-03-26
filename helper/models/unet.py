@@ -15,21 +15,21 @@ class UNet(BaseModel):
             self.model = Unet(
                 encoder_name='resnet34',
                 encoder_weights=None,  # Randomly initialized weights
-                in_channels=3,
+                in_channels=4,
                 classes=2
             )
         elif type == 'UnetImageNet':
             self.model = Unet(
                 encoder_name='resnet34',
                 encoder_weights='imagenet',
-                in_channels=3,
+                in_channels=4,
                 classes=2
             )
         elif type == 'Unet++':
             self.model = UnetPlusPlus(
                 encoder_name='resnet34',
                 encoder_weights=None,
-                in_channels=3,
+                in_channels=4,
                 classes=2
             )
         
