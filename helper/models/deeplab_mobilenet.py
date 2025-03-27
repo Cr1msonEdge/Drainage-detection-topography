@@ -16,4 +16,6 @@ class DeepLab(BaseModel):
 
     def compute_outputs(self, images):
         return self.model(images)["out"]
-        
+
+    def forward(self, images):
+        return self.model(images)["out"]

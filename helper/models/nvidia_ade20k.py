@@ -44,13 +44,11 @@ class NvidiaSegformer(BaseModel):
         self.model.to(self.base_device)
         
         self.feature_extractor = SegformerFeatureExtractor(do_resize=True, size=(256, 256))
-
-        
-    def compute_outputs(self, images):
-        outputs = self.model(images).logits
+    
+    def forward(self, images):
+        outputs = self.model(pixel_values=images).logits
         outputs = F.interpolate(outputs, size=(256, 256), mode='bilinear', align_corners=False)
         return outputs
-    
 
     # def train_epoch(self, dataloader, criterion, optimizer, device):
     #     self.model.train()
