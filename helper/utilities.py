@@ -37,34 +37,44 @@ def get_bin(mask, max_bins=5, top_bin_percentage=20):
     return max_bins - 1
 
 
-def save_train_test_split(dataset_name: str, save_dir_train: str, save_dir_test: str, images, masks, test=True, test_size=0.2, verbose=-1):
+def save_train_test_split(dataset_name: str, images, masks, val_size=0.1, test_size=0.1, random_state=42):
     assert len(images) == len(masks), "Size of images and masks are not equal."
     curr_file = Path(__file__)
+    
     datasets_path = curr_file.parent.parent / 'datasets'
-    dataset_name = datasets_path / dataset_name
+    save_dir = datasets_path / dataset_name
 
-    # Создаем папку для сохранения, если она не существует
+    # Create folder if it doesn't exist
     if not os.path.exists(dataset_name):
         os.makedirs(dataset_name)
-
-    # Делим изображения и маски на тренировочный и тестовый наборы
-    train_images, test_images, train_masks, test_masks = train_test_split(
-        images, masks, test_size=test_size, random_state=42
+    
+    train_dir = os.path.join(save_dir, 'train')
+    if val_size:
+        val_dir = os.path.join(save_dir, 'val')
+    test_dir = os.path.join(save_dir, 'test')
+    
+    for d in [train_dir, val_dir, test_dir]:
+        if not os.path.exists(d):
+            os.makedirs(d)
+    
+    temp_ratio = val_size + test_size
+    train_images, temp_images, train_masks, temp_masks = train_test_split(
+        images, masks, test_size=temp_ratio, random_state=random_state
     )
+    
+    rel_test_ratio = test_size / temp_ratio if temp_ratio != 0 else 0
+    val_images, test_images, val_masks, test_masks = train_test_split(
+        temp_images, temp_masks, test_size=rel_test_ratio, random_state=random_state
+    )
+    
+    np.save(os.path.join(train_dir, 'train_images.npy'), train_images)
+    np.save(os.path.join(train_dir, 'train_masks.npy'), train_masks)
 
-    if verbose > 0:
-        print(f"Number of train images: {len(train_images)}, of test images: {len(test_images)}, test_size={test_size}")
-
-    # Сохраняем тренировочные данные
-    np.save(os.path.join(dataset_name / 'train/' , '/train_images.npy'), train_images)
-    np.save(os.path.join(dataset_name / 'train/', '/train_masks.npy'), train_masks)
-
-    if test:
-        np.save(os.path.join(dataset_name / 'test/', 'test_images.npy'), test_images)
-        np.save(os.path.join(dataset_name / 'test/', 'test_masks.npy'), test_masks)
-    else:
-        np.save(os.path.join(dataset_name / 'val/', 'val_images.npy'), test_images)
-        np.save(os.path.join(dataset_name / 'val/', 'val_masks.npy'), test_masks)
-
-    if verbose > -1:
-        print(f"Data successfully saved to {dataset_name}")
+    if val_size:
+        np.save(os.path.join(val_dir, 'val_images.npy'), val_images)
+        np.save(os.path.join(val_dir, 'val_masks.npy'), val_masks)
+    
+    np.save(os.path.join(test_dir, 'test_images.npy'), test_images)
+    np.save(os.path.join(test_dir, 'test_masks.npy'), test_masks)
+    
+    print(f"Данные успешно сохранены в каталогах:\n  - {train_dir}\n  - {val_dir}\n  - {test_dir}")

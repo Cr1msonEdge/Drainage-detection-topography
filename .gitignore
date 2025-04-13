@@ -165,3 +165,7 @@ images.npy
 masks.npy
 .helper\models\saved\Unet\Unet-6226583f.ckpt
 *.ckpt
+image_patches.npy
+mask_patches.npy
+source_images
+datasets/

@@ -31,10 +31,15 @@ class BaseModel(pl.LightningModule):
     _loaded_hparams = None
 
     def __init__(self, model_name, config=None):
+        """
+        Params:
+        model_name - name of the type of model (Segformer, Unet, DeepLab)
+        config - configuration of class Config(). If none means the model is loading from checkpoint
+        """
         super().__init__()
         self.model_name = model_name
 
-        # Setting up configuration
+        # Creating model
         if config is not None:
             self.config = config
             self.unique_id = config.uid
@@ -44,10 +49,8 @@ class BaseModel(pl.LightningModule):
                 **self.config.to_dict(),
                 'uid': self.unique_id
             }
-
         else:
-            # Если config не передан (например, при load_from_checkpoint),
-            # попробуем восстановить гиперпараметры из класса
+            # Loading model from checkpoint
             if self.hparams is None or self.hparams == {}:
                 if self.__class__._loaded_hparams is not None:
                     # Присваиваем сохранённые гиперпараметры
@@ -67,8 +70,6 @@ class BaseModel(pl.LightningModule):
 
         print(f"{model_name} initialized with hyperparams: {self.config.to_dict()}")
 
-
-        
         # Saving metrics during epoch
         self.training_step_loss = []
         self.training_step_metric = []
@@ -84,7 +85,6 @@ class BaseModel(pl.LightningModule):
         self.test_step_iou = []
         self.test_step_dice = []
         
-
         # Setting device
         self.base_device = self.config.device
         
@@ -97,20 +97,19 @@ class BaseModel(pl.LightningModule):
     
     @classmethod
     def load_from_checkpoint(cls, checkpoint_path, **kwargs):
-        # Загружаем чекпоинт один раз, чтобы извлечь гиперпараметры
+        # Loading checkpoint to load model and hyperparams
         checkpoint = load(checkpoint_path, map_location="cpu")
-        # Если в чекпоинте есть гиперпараметры под ключом "hyper_parameters",
-        # передаем их в hparams_override, если он не был передан явно
+        # Get hyperparams from checkpoint
         if "hyper_parameters" in checkpoint:
             cls._loaded_hparams = checkpoint["hyper_parameters"]
-        
+
+        # Deleting optimizer and schedulers so Lightning can load it by itself
         if "optimizer_states" in checkpoint:
             del checkpoint["optimizer_states"]
         if "lr_schedulers" in checkpoint:
             del checkpoint["lr_schedulers"]
-        # Сохраняем изменённый чекпоинт во временной переменной
-        # и передаём его в метод базового класса
-        # super().load_from_checkpoint()
+
+        # Calling from Lightning
         return super(BaseModel, cls).load_from_checkpoint(checkpoint_path, **kwargs)
     
     def training_step(self, batch, batch_idx):
