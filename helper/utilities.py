@@ -8,12 +8,12 @@ def calculate_mask_percentage(mask):
     Calculate percentage of drainage system on the image
     """
     mask = mask.squeeze()
-    mask = np.where(mask == 255, 1, 0)
+    mask = np.where(mask == 1, 1, 0)
     ratio = np.sum(mask) / (mask.shape[0] * mask.shape[1]) * 100
     return ratio
 
 
-def get_bin(mask, max_bins=5, top_bin_percentage=20):
+def get_bin(mask, max_bins=5, top_bin_percentage=15):
     """
     Return the number of bin for a mask
     
@@ -22,7 +22,7 @@ def get_bin(mask, max_bins=5, top_bin_percentage=20):
     top_bin_percentage: the masks that has percentage more than this parameters will have the bin number 'max_bins - 1'
     """
     mask = mask.squeeze()
-    mask = np.where(mask == 255, 1, 0)
+    mask = np.where(mask == 1, 1, 0)
     ratio = np.sum(mask, axis=(0, 1)) / (mask.shape[0] * mask.shape[1]) * 100
     if ratio == 0:
         return 0
@@ -67,14 +67,14 @@ def save_train_test_split(dataset_name: str, images, masks, val_size=0.1, test_s
         temp_images, temp_masks, test_size=rel_test_ratio, random_state=random_state
     )
     
-    np.save(os.path.join(train_dir, 'train_images.npy'), train_images)
-    np.save(os.path.join(train_dir, 'train_masks.npy'), train_masks)
+    np.save(os.path.join(train_dir, 'images.npy'), train_images)
+    np.save(os.path.join(train_dir, 'masks.npy'), train_masks)
 
     if val_size:
-        np.save(os.path.join(val_dir, 'val_images.npy'), val_images)
-        np.save(os.path.join(val_dir, 'val_masks.npy'), val_masks)
+        np.save(os.path.join(val_dir, 'images.npy'), val_images)
+        np.save(os.path.join(val_dir, 'masks.npy'), val_masks)
     
-    np.save(os.path.join(test_dir, 'test_images.npy'), test_images)
-    np.save(os.path.join(test_dir, 'test_masks.npy'), test_masks)
+    np.save(os.path.join(test_dir, 'images.npy'), test_images)
+    np.save(os.path.join(test_dir, 'masks.npy'), test_masks)
     
-    print(f"Данные успешно сохранены в каталогах:\n  - {train_dir}\n  - {val_dir}\n  - {test_dir}")
+    print(f"Successfully saved data in:\n  - {train_dir}\n  - {val_dir}\n  - {test_dir}")

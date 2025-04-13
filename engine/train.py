@@ -34,8 +34,8 @@ def run_training(model_name, config: Config, tags=None, description=None):
     
     print("=== Setting up dataloader === ")
     # Getting dataloader
-    dataloader = get_dataloader(mode='train', device=config.device, batch_size=config.BATCH_SIZE)
-    val_loader = get_dataloader(mode='test', device=config.device, batch_size=config.BATCH_SIZE)
+    dataloader = get_dataloader(mode='train', device=config.device, batch_size=config.BATCH_SIZE, name=config.dataset_name)
+    val_loader = get_dataloader(mode='test', device=config.device, batch_size=config.BATCH_SIZE, name=config.dataset_name)
     
     print("=== Setting up Neptune === ")
     # Setting up Neptune

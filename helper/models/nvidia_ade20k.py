@@ -30,7 +30,7 @@ class NvidiaSegformer(BaseModel):
         # Getting pretrained weights for RGB channels. The 4th channel will be mean of 3 channels
         with torch.no_grad():
             new_conv.weight[:, :3, :, :] = old_conv.weight
-            new_conv.weight[:, 3:4, :, :] = old_conv.weight.mean(dim=1, keepdim=True)
+            nn.init.normal_(new_conv.weight[:, 3:4, :, :], mean=0.0, std=0.01)
             if old_conv.bias is not None:
                 new_conv.bias.copy_(old_conv.bias)
 
