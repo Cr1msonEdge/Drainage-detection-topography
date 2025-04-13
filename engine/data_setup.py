@@ -32,7 +32,43 @@ def get_dataset_folder(name=None):
     
     return datasets_dir / name
         
+
+def get_dataset(mode='train', name=None, device=None, batch_size=128, num_workers=0):
+    """
+    Return dataset
+    
+    Params:
+    mode - train or test. If test, no augmentation is applied to images
+    name - name of the file for a dataset
+    """
+    assert mode in ['train', 'test'], f"Mode {mode} is invalid."
+    assert device in ['cpu', 'cuda', None], f"Device {device} is invalid."
+    
+    if device is None:
+        device = 'cuda' if is_available() else 'cpu'
         
+    if name is None:
+        name = DATASET_NAMES[0]
+        
+    data_dir = get_dataset_folder(name) / mode
+    if data_dir.exists():
+        # Checking if both images.npy and masks.npy exist
+        data_folder_content = [i.name for i in data_dir.iterdir()]
+        
+        if "images.npy" in data_folder_content and "masks.npy" in data_folder_content:
+            images = np.load(f"{data_dir}/images.npy")
+            masks = np.load(f"{data_dir}/masks.npy")
+            
+            data = DrainageDataset(images=images, masks=masks, mode=mode)
+            
+            return data
+
+        else:
+            raise Exception(f"Didn't find images.npy and masks.npy in Dataset: {name} folder.")
+    else:
+        raise Exception(f"{data_dir} doesn't exist.")
+
+
 def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_workers=0):
     """
     Return dataloader
