@@ -1,6 +1,6 @@
 from torch import save, load, unsqueeze, argmax, no_grad, stack, is_tensor
 import torch.nn.functional as F
-from torch.nn import CrossEntropyLoss
+from torch.nn import CrossEntropyLoss, Conv2d, init
 import pathlib
 from helper.callbacks.visualize import show_prediction
 from helper.callbacks.metrics import get_iou
@@ -11,7 +11,6 @@ from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use("Agg")
-
 from IPython import display
 from tqdm import tqdm
 import lightning as pl
@@ -53,19 +52,18 @@ class BaseModel(pl.LightningModule):
             # Loading model from checkpoint
             if self.hparams is None or self.hparams == {}:
                 if self.__class__._loaded_hparams is not None:
-                    # Присваиваем сохранённые гиперпараметры
+                    
                     self.hparams.update(self.__class__._loaded_hparams)
                     hparams = self._loaded_hparams
                     hparams['time_iter'] = time.strftime("%Y%m%d-%H%M%S")
-                    # При необходимости создаем объект config из них:
-                    # Например, если у вас есть конструктор Config(**kwargs)
+                    
                     self.config = Config(**self.__class__._loaded_hparams)
                 else:
                     raise Exception(f"Fatal error: couldn't load model.")
 
         self.save_hyperparameters(hparams)
 
-        # Common parameters for new model and a loaded one
+        # Common parameters for new model and loaded one
         if self.config.criterion == 'CrossEntropy':
             self.loss = CrossEntropyLoss()
 
@@ -88,7 +86,35 @@ class BaseModel(pl.LightningModule):
         
         # Setting device
         self.base_device = self.config.device
+    
+    def adapt_conv_layer(self, conv_layer, in_channels: int=4):
+        """
+        Adapt the input convolutional layer to number channels
+        """
+        if conv_layer.in_channels == in_channels:
+            return conv_layer  
         
+        new_conv = Conv2d(
+            in_channels=in_channels, 
+            out_channels=conv_layer.out_channels,
+            kernel_size=conv_layer.kernel_size,
+            stride=conv_layer.stride,
+            padding=conv_layer.padding,
+            bias=(conv_layer.bias is not None)
+        )
+        
+        with no_grad():
+            new_conv.weight[:, :3, :, :] = conv_layer.weight[:, :3, :, :]
+
+            # Остальные инициализируем нормально
+            if in_channels > 3:
+                init.normal_(new_conv.weight[:, 3:, :, :], mean=0.0, std=0.01)
+
+            if conv_layer.bias is not None:
+                new_conv.bias.copy_(conv_layer.bias)
+        
+        return new_conv
+    
     def set_id(self, id):
         self.unique_id = id
     

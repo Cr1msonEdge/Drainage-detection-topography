@@ -10,14 +10,14 @@ class Config:
     Class for configs
     """
     
-    def __init__(self, opt=None, crit=None, lr=1e-4, num_epochs=100, batch_size=64, scheduler=None, device=None, scheduler_params=None, uid=None, dataset_name=None, **kwargs):
+    def __init__(self, opt=None, crit=None, lr=1e-4, num_epochs=100, batch_size=64, scheduler=None, device=None, scheduler_params=None, uid=None, dataset_name=None, num_channels=3, **kwargs):
         self.NUM_EPOCHS = num_epochs
         self.BATCH_SIZE = batch_size
         self.LEARNING_RATE = lr
         self.scheduler = scheduler
-        self.TEST_ITER = 0
         self.uid = uid
         self.dataset_name = dataset_name
+        self.num_channels = num_channels
 
         # Setting uid
         timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -51,7 +51,9 @@ class Config:
                         'milestones': [30, 80, 150],
                         'gamma': 0.3
                     }
-
+        # Setting num_channels
+        assert self.num_channels in [3, 4]
+        
         # Setting criterions 
         # ? Add another loss function?
         assert crit in [None, 'CrossEntropy'], f"Criterion {crit} is not from list of Criterions"
@@ -69,7 +71,7 @@ class Config:
             'crit': self.criterion,
             'learning_rate': self.LEARNING_RATE,
             'scheduler': self.scheduler,
-            'test_iter': self.TEST_ITER,
-            'dataset_name': self.dataset_name
+            'dataset_name': self.dataset_name,
+            'num_channels': self.num_channels
         }
         

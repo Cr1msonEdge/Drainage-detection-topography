@@ -9,32 +9,14 @@ from helper.models.config import Config
 
 class NvidiaSegformer(BaseModel):
     def __init__(self, config: Config):
-        super().__init__('NvidiaSegformer')
+        super().__init__('NvidiaSegformer', config)
 
         self.id2label = {0: 'background', 1: 'drainage'}
         self.label2id = {label: id for id, label in self.id2label.items()}
         
         self.model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b1-finetuned-ade-512-512", num_labels=2, ignore_mismatched_sizes=True, id2label=self.id2label, label2id=self.label2id)
-        old_conv = self.model.segformer.encoder.patch_embeddings[0].proj
-
-        # Creating 4 channels layer
-        new_conv = nn.Conv2d(
-            in_channels=4,
-            out_channels=old_conv.out_channels,
-            kernel_size=old_conv.kernel_size,
-            stride=old_conv.stride,
-            padding=old_conv.padding,
-            bias=(old_conv.bias is not None)
-        )
-
-        # Getting pretrained weights for RGB channels. The 4th channel will be mean of 3 channels
-        with torch.no_grad():
-            new_conv.weight[:, :3, :, :] = old_conv.weight
-            nn.init.normal_(new_conv.weight[:, 3:4, :, :], mean=0.0, std=0.01)
-            if old_conv.bias is not None:
-                new_conv.bias.copy_(old_conv.bias)
-
-        self.model.segformer.encoder.patch_embeddings[0].proj = new_conv
+        
+        self.model.segformer.encoder.patch_embeddings[0].proj = self.adapt_conv_layer(self.model.segformer.encoder.patch_embeddings[0].proj, in_channels=config.num_channels)
         
         # Freezing encoder except of first layer
         for name, param in self.model.segformer.encoder.named_parameters():
