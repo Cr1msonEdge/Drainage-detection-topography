@@ -56,6 +56,7 @@ class BaseModel(pl.LightningModule):
                     # Присваиваем сохранённые гиперпараметры
                     self.hparams.update(self.__class__._loaded_hparams)
                     hparams = self._loaded_hparams
+                    hparams['time_iter'] = time.strftime("%Y%m%d-%H%M%S")
                     # При необходимости создаем объект config из них:
                     # Например, если у вас есть конструктор Config(**kwargs)
                     self.config = Config(**self.__class__._loaded_hparams)
@@ -117,7 +118,7 @@ class BaseModel(pl.LightningModule):
         masks = masks.squeeze()
         outputs = self.forward(images)
         loss = self.loss(outputs, masks)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         self.training_step_loss.append(loss)
         self.logger.experiment["train/loss"].append(loss.item())
 
@@ -127,7 +128,7 @@ class BaseModel(pl.LightningModule):
 
         preds = argmax(outputs, dim=1)
         metric = get_iou(preds, masks)
-        self.log('train_metric', metric, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train_metric', metric, on_step=False, on_epoch=True, prog_bar=True)
         self.training_step_metric.append(metric)
         self.logger.experiment["train/metric"].append(metric)
 
@@ -144,7 +145,7 @@ class BaseModel(pl.LightningModule):
 
         preds = argmax(outputs, dim=1)
         metric = get_iou(preds, masks)
-        self.log('val_metric', metric, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('val_metric', metric, on_step=False, on_epoch=True, prog_bar=True)
         self.validation_step_metric.append(metric)
         self.logger.experiment["val/metric"].append(metric)
 
@@ -158,7 +159,7 @@ class BaseModel(pl.LightningModule):
         masks = masks.squeeze()
         outputs = self.forward(images)
         loss = self.loss(outputs, masks)
-        self.log('test_loss', loss, on_step=True)
+        self.log('test_loss', loss, on_step=False, on_epoch=True)
         self.test_step_loss.append(loss)
         
         preds = argmax(outputs, dim=1)
@@ -170,12 +171,12 @@ class BaseModel(pl.LightningModule):
         iou = get_iou(preds, masks)
         dice = get_dice(preds, masks)
         
-        self.log('test_accuracy', accuracy, on_step=True)
-        self.log('test_precision', precision, on_step=True)
-        self.log('test_recall', recall, on_step=True)
-        self.log('test_f1', f1, on_step=True)
-        self.log('test_iou', iou, on_step=True)
-        self.log('test_dice', dice, on_step=True)
+        # self.log('test_accuracy', accuracy, on_step=False, on_epoch=True)
+        # self.log('test_precision', precision, on_step=False, on_epoch=True)
+        # self.log('test_recall', recall, on_step=False, on_epoch=True)
+        # self.log('test_f1', f1, on_step=False, on_epoch=True)
+        # self.log('test_iou', iou, on_step=False, on_epoch=True)
+        # self.log('test_dice', dice, on_step=False, on_epoch=True)
 
         self.test_step_accuracy.append(accuracy)
         self.test_step_precision.append(precision)
@@ -215,7 +216,8 @@ class BaseModel(pl.LightningModule):
         self.validation_step_metric.clear()
     
     def on_test_epoch_end(self):
-        self.config.TEST_ITER += 1
+        self.hparams.test_iter += 1
+        self.save_hyperparameters(self.hparams)
         avg_test_loss = sum(self.test_step_loss) / len(self.test_step_loss)
         avg_test_accuracy = sum(self.test_step_accuracy) / len(self.test_step_accuracy)
         avg_test_precision = sum(self.test_step_precision) / len(self.test_step_precision)
@@ -247,7 +249,7 @@ class BaseModel(pl.LightningModule):
         tmp_dir = "tmp_images"
         os.makedirs(tmp_dir, exist_ok=True)
         # unique_id = str(uuid.uuid4())[:4]
-        chart_path = os.path.join(tmp_dir, f"test-{self.model_name}-{self.unique_id}-{self.config.TEST_ITER}.png")
+        chart_path = os.path.join(tmp_dir, f"test-{self.model_name}-{self.config.uid}-{self.config.TEST_ITER}.png")
         self.save_test_metrics_bar_chart(test_metrics, chart_path)
 
         # Загружаем диаграмму в Neptune

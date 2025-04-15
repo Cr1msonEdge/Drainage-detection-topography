@@ -12,7 +12,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from helper.api_key import *
 
 
-def run_test(model_name, config=None):
+def run_test(model_name):
     # Setting up model
     # assert model_name in MODEL_NAMES, f"Model {model_name} is not found."
     file_path = get_model_file_path(model_name)
@@ -28,7 +28,7 @@ def run_test(model_name, config=None):
     print("=== Loading model ===")
     print(f"Checking {model.hparams}")
     # Getting dataloader
-    dataloader = get_dataloader(mode='test', device=model.config.device, batch_size=model.config.BATCH_SIZE)
+    dataloader = get_dataloader(mode='test', device=model.config.device, batch_size=model.config.BATCH_SIZE, name=model.config.dataset_name)
     
     # Setting up Neptune
     neptune_logger = NeptuneLogger(

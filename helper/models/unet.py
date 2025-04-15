@@ -34,7 +34,9 @@ class UNet(BaseModel):
             )
         
         self.model = self.model.to(self.base_device)
-                
+
+
+
     def forward(self, images):
         return self.model(images)
 

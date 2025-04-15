@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 from torch.utils.data import DataLoader
 from torch.cuda import is_available
+import os
 
 
 DATASET_NAMES = [
@@ -33,7 +34,7 @@ def get_dataset_folder(name=None):
     return datasets_dir / name
         
 
-def get_dataset(mode='train', name=None, device=None, batch_size=128, num_workers=0):
+def get_dataset(mode='train', name=None, device=None):
     """
     Return dataset
     
@@ -77,7 +78,7 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
     mode - train or test. If test, no augmentation is applied to images
     name - name of the file for a dataset
     """
-    assert mode in ['train', 'test'], f"Mode {mode} is invalid."
+    assert mode in ['train', 'test', 'val'], f"Mode {mode} is invalid."
     assert device in ['cpu', 'cuda', None], f"Device {device} is invalid."
     
     if device is None:
@@ -85,7 +86,8 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
         
     if name is None:
         name = DATASET_NAMES[0]
-        
+    
+    
     data_dir = get_dataset_folder(name) / mode
     if data_dir.exists():
         # Checking if both images.npy and masks.npy exist

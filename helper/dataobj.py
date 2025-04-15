@@ -87,7 +87,7 @@ class DrainageDataset(Dataset):
         # Переводим в тензоры
         image_aug = np.transpose(image_aug, (2, 0, 1))  # (C, H, W)
         image = torch.tensor(image_aug, dtype=torch.float32)
-        mask = torch.tensor(mask, dtype=torch.float32)
+        mask = torch.tensor(mask, dtype=torch.long)
 
         return image, mask
 
