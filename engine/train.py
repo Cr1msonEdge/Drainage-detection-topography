@@ -97,7 +97,7 @@ def run_training(model_name, config: Config, tags=None, description=None):
     print(f"Saved into {get_model_folder(model_name, verbose=-1)}/{model_name}-{model.unique_id}.ckpt")
     print(f"Config is {model.config}")
 
-    return f"{model_name}-{model.unique_id}.ckpt"
+    return f"{model_name}-{model.unique_id}"
 
 if __name__ == "__main__":
     print('asd')

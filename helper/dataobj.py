@@ -13,6 +13,10 @@ class DrainageDataset(Dataset):
     def __init__(self, images, masks, device=None, mode='train'):
         self.images = np.array(images)
         self.masks = np.array(masks)
+        # Transforming
+        self.images = self.images.astype(np.float32) / 255.0
+        self.masks = self.masks.astype(np.long)
+        
         self.transform = None
         if device is None:
             self.device = 'cuda' if is_available() else 'cpu'
@@ -58,7 +62,7 @@ class DrainageDataset(Dataset):
         image = self.images[idx]  # shape: (H, W, 4)
         mask = self.masks[idx]    # shape: (H, W)
         
-        image = image.astype(np.float32) / 255.0
+        # image = image.astype(np.float32) / 255.0
         
         if self.mode == 'train':
             transform = A.Compose([
@@ -123,18 +127,15 @@ class DrainageDataset(Dataset):
             # plt.title("True Mask")
             
         else:
-            # Numpy arrays
             image = self.images[idx]  # (H, W, 4)
             mask = self.masks[idx]   # (H, W)
-
-            # Извлекаем RGB и DEM
             rgb = image[:, :, :3]
             dem = image[:, :, 3]
         
         plt.figure(figsize=(12, 4))
 
         plt.subplot(1, 3, 1)
-        plt.imshow(rgb, )  
+        plt.imshow(rgb)  
         plt.axis('off')
         plt.title("RGB Image")
 

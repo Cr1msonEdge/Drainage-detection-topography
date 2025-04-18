@@ -16,14 +16,16 @@ def run_test(model_name):
     # Setting up model
     # assert model_name in MODEL_NAMES, f"Model {model_name} is not found."
     file_path = get_model_file_path(model_name)
-    print(f" Looking in {file_path}")
+    print(f"Looking in {file_path}")
     if "Unet" in model_name:
         model = UNet.load_from_checkpoint(file_path)
         print("Created Unet")
-    elif model_name == "Segformer":
+    elif "Segformer" in model_name:
         model = NvidiaSegformer.load_from_checkpoint(file_path)
-    else:
+    elif "DeepLab" in model_name:
         model = DeepLab.load_from_checkpoint(file_path)
+    else:
+        raise Exception("Such model doesn't exist")
 
     print("=== Loading model ===")
     print(f"Checking {model.hparams}")

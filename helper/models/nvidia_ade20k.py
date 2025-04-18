@@ -8,7 +8,7 @@ from helper.models.config import Config
 
 
 class NvidiaSegformer(BaseModel):
-    def __init__(self, config: Config):
+    def __init__(self, config: Config=None):
         super().__init__('NvidiaSegformer', config)
 
         self.id2label = {0: 'background', 1: 'drainage'}
@@ -16,7 +16,7 @@ class NvidiaSegformer(BaseModel):
         
         self.model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b1-finetuned-ade-512-512", num_labels=2, ignore_mismatched_sizes=True, id2label=self.id2label, label2id=self.label2id)
         
-        self.model.segformer.encoder.patch_embeddings[0].proj = self.adapt_conv_layer(self.model.segformer.encoder.patch_embeddings[0].proj, in_channels=config.num_channels)
+        self.model.segformer.encoder.patch_embeddings[0].proj = self.adapt_conv_layer(self.model.segformer.encoder.patch_embeddings[0].proj, in_channels=self.config.num_channels)
         
         # Freezing encoder except of first layer
         for name, param in self.model.segformer.encoder.named_parameters():

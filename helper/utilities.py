@@ -45,15 +45,21 @@ def save_train_test_split(dataset_name: str, images, masks, val_size=0.1, test_s
     save_dir = datasets_path / dataset_name
 
     # Create folder if it doesn't exist
-    if not os.path.exists(dataset_name):
-        os.makedirs(dataset_name)
-    
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    temp = []
     train_dir = os.path.join(save_dir, 'train')
+    temp.append(train_dir)
+
     if val_size:
         val_dir = os.path.join(save_dir, 'val')
+        temp.append(val_dir)
+
     test_dir = os.path.join(save_dir, 'test')
-    
-    for d in [train_dir, val_dir, test_dir]:
+    temp.append(test_dir)
+
+    for d in temp:
         if not os.path.exists(d):
             os.makedirs(d)
     

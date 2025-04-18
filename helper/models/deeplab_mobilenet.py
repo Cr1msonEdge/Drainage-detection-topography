@@ -6,7 +6,7 @@ from helper.models.config import *
 
         
 class DeepLab(BaseModel):
-    def __init__(self, config: Config):
+    def __init__(self, config: Config=None):
         super().__init__("DeepLabV3", config)
         
         self.model = DeepLabV3Plus(encoder_weights="imagenet", in_channels=4, classes=2)

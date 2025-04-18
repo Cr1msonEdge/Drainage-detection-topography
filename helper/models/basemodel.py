@@ -1,7 +1,7 @@
 from torch import save, load, unsqueeze, argmax, no_grad, stack, is_tensor
-import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss, Conv2d, init
 import pathlib
+import numpy as np
 from helper.callbacks.visualize import show_prediction
 from helper.callbacks.metrics import get_iou
 from helper.models.config import Config
@@ -60,7 +60,8 @@ class BaseModel(pl.LightningModule):
                     self.config = Config(**self.__class__._loaded_hparams)
                 else:
                     raise Exception(f"Fatal error: couldn't load model.")
-
+            else:
+                raise Exception(f"Fatal error: couldn't load model. Unexpected error")
         self.save_hyperparameters(hparams)
 
         # Common parameters for new model and loaded one
@@ -86,23 +87,24 @@ class BaseModel(pl.LightningModule):
         
         # Setting device
         self.base_device = self.config.device
-    
+
+    @staticmethod
     def adapt_conv_layer(self, conv_layer, in_channels: int=4):
         """
         Adapt the input convolutional layer to number channels
         """
         if conv_layer.in_channels == in_channels:
-            return conv_layer  
-        
+            return conv_layer
+
         new_conv = Conv2d(
-            in_channels=in_channels, 
+            in_channels=in_channels,
             out_channels=conv_layer.out_channels,
             kernel_size=conv_layer.kernel_size,
             stride=conv_layer.stride,
             padding=conv_layer.padding,
             bias=(conv_layer.bias is not None)
         )
-        
+
         with no_grad():
             new_conv.weight[:, :3, :, :] = conv_layer.weight[:, :3, :, :]
 
@@ -112,16 +114,12 @@ class BaseModel(pl.LightningModule):
 
             if conv_layer.bias is not None:
                 new_conv.bias.copy_(conv_layer.bias)
-        
+
         return new_conv
-    
+
     def set_id(self, id):
         self.unique_id = id
-    
-    @abc.abstractmethod
-    def forward(self, images):
-        pass
-    
+
     @classmethod
     def load_from_checkpoint(cls, checkpoint_path, **kwargs):
         # Loading checkpoint to load model and hyperparams
@@ -138,7 +136,49 @@ class BaseModel(pl.LightningModule):
 
         # Calling from Lightning
         return super(BaseModel, cls).load_from_checkpoint(checkpoint_path, **kwargs)
-    
+
+
+    # ---------------------------------------
+    # Model's functions
+
+    @abc.abstractmethod
+    def forward(self, images):
+        pass
+
+    def predict(self, image, mask, device, show_full=False, show=False):
+        """
+        Return model's predict.
+
+        Args:
+            image: source image
+            mask: source mask
+            device: the device where the model is situated
+            show_full: if True shows original mask, prediction and intersection
+            show: if True plots the prediction
+        """
+        assert not(show_full and not show), "Show can't be true, while show_full is mode is active"
+        self.model.eval()
+
+        # Converting the images into tensors and send them to the desired device.
+        image = image.to(device)
+        mask = mask.to(device)
+        image = unsqueeze(image, 0)
+        mask = unsqueeze(mask, 0)
+        with no_grad():
+
+            output = self.compute_outputs(image)
+            pred = argmax(output, dim=1).squeeze(0).cpu()  # Get the prediction
+            if show_full:
+                show_prediction(image.squeeze().cpu(), pred, mask.squeeze().cpu(), show_intersection=True)
+            elif show:
+                show_prediction(image.squeeze().cpu(), pred, mask.squeeze().cpu(), show_intersection=False)
+
+        return pred
+
+
+    # ----------------------------------------
+    # Lightning
+
     def training_step(self, batch, batch_idx):
         images, masks = batch
         masks = masks.squeeze()
@@ -281,6 +321,43 @@ class BaseModel(pl.LightningModule):
         # Загружаем диаграмму в Neptune
         self.logger.experiment["test/metrics_bar_chart"].upload(chart_path)
 
+    def configure_optimizers(self):
+        if self.config.optimizer == 'Adam':
+            optimizer = Adam(self.model.parameters(), lr=self.config.LEARNING_RATE)
+        elif self.config.optimizer == 'AdamW':
+            optimizer = AdamW(self.model.parameters(), lr=self.config.LEARNING_RATE)
+        elif self.config.optimizer == 'SGD':
+            optimizer = SGD(self.model.parameters(), lr=self.config.LEARNING_RATE)
+        else:
+            raise Exception(f"Optimizer {self.config.optimizer} not from list of available optimizers.")
+
+        if self.config.scheduler is not None:
+            if self.config.scheduler == 'Plateau':
+                return (
+                    {
+                        "optimizer": optimizer,
+                        "lr_scheduler": {
+                            ReduceLROnPlateau(optimizer, **self.config.scheduler_params)
+                        }
+                    }
+                )
+
+            if self.config.scheduler == 'MultistepLR':
+                return (
+                    {
+                        "optimizer": optimizer,
+                        "lr_scheduler": {
+                            MultiStepLR(optimizer, **self.config.scheduler_params)
+                        }
+                    }
+                )
+
+        return optimizer
+
+
+    # ---------------------------------------------
+    # Extra functionality
+
     @staticmethod
     def save_test_metrics_bar_chart(test_metrics, save_path):
         """
@@ -305,36 +382,66 @@ class BaseModel(pl.LightningModule):
         plt.savefig(save_path)
         plt.close()
 
-    def configure_optimizers(self):
-        if self.config.optimizer == 'Adam':
-            optimizer = Adam(self.model.parameters(), lr=self.config.LEARNING_RATE)
-        elif self.config.optimizer == 'AdamW':
-            optimizer = AdamW(self.model.parameters(), lr=self.config.LEARNING_RATE)
-        elif self.config.optimizer == 'SGD':
-            optimizer = SGD(self.model.parameters(), lr=self.config.LEARNING_RATE)
-        
-        if self.config.scheduler is not None:
-            if self.config.scheduler == 'Plateau':    
-                return (
-                    {
-                        "optimizer": optimizer,
-                        "lr_scheduler": {
-                            ReduceLROnPlateau(optimizer, **self.config.scheduler_params)
-                        }
-                    }
-                )
-            
-            if self.config.scheduler == 'MultistepLR':
-                return (
-                    {
-                        "optimizer": optimizer,
-                        "lr_scheduler": {
-                            MultiStepLR(optimizer, **self.config.scheduler_params)
-                        }
-                    }
-                )    
-        
-        return optimizer
+    @staticmethod
+    def split_tif_into_patches(image, patch_size=256, pad=False):
+        """
+        Return patches from cut image
+        """
+        h, w, c = image.shape
+        if pad:
+            pad_h = (patch_size - h % patch_size) % patch_size
+            pad_w = (patch_size - w % patch_size) % patch_size
+            padded_image = np.pad(image, ((0, pad_h), (0, pad_w), (0, 0)), mode='constant', constant_values=0)
+        else:
+            padded_image = image
+
+        patches = []
+        for i in range(0, padded_image.shape[0], patch_size):
+            for j in range(0, padded_image.shape[1], patch_size):
+                patch = padded_image[i: i + patch_size, j: j + patch_size]
+                patches.append(patch)
+
+        return patches
+
+    @staticmethod
+    def reconstruct_mask_from_patches(patches, image_shape, patch_size=256):
+        h, w = image_shape
+        reconstructed_image = np.zeros((h, w), dtype=np.uint8)
+        patch_idx = 0  # Iterating over patches
+
+        for i in range(0, h, patch_size):
+            for j in range(0, w, patch_size):
+                patch = patches[patch_idx]
+                reconstructed_image[i: i + patch_size, j: j + patch_size] = patch
+                patch_idx += 1
+
+        return reconstructed_image
+
+
+    def predict_from_tif(self, tif_path: str, threshold: float = 0.3, patch_size: int = 256, return_mask: bool = True):
+        """
+        Полный pipeline: из .tif -> патчи -> предикт -> склейка
+        """
+        # 1. Нарезаем изображение на патчи
+        image_patches, valid_indices, original_shape = self.split_tif_into_patches(
+            tif_path, patch_size=patch_size, return_shape=True
+        )
+
+        # 2. Предсказываем для каждого патча
+        preds = []
+        for patch in image_patches:
+            input_tensor = self.preprocess_patch(patch)  # Например, нормализация
+            pred = self.forward(input_tensor.unsqueeze(0).to(self.device))
+            pred_mask = self.postprocess_pred(pred)  # Приведение к (H, W)
+            preds.append(pred_mask)
+
+        preds = np.stack(preds)  # (N, H, W)
+
+        # 3. Склеиваем патчи обратно в маску
+        final_mask = self.reconstruct_mask_from_patches(preds, valid_indices, original_shape, patch_size=patch_size)
+
+        if return_mask:
+            return final_mask
 
             
 #     def save(self):
