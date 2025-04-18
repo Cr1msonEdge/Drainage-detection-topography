@@ -88,7 +88,7 @@ class BaseModel(pl.LightningModule):
         # Setting device
         self.base_device = self.config.device
 
-    @staticmethod
+
     def adapt_conv_layer(self, conv_layer, in_channels: int=4):
         """
         Adapt the input convolutional layer to number channels
