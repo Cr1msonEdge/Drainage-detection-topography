@@ -12,7 +12,7 @@ class DrainageDataset(Dataset):
     """
     def __init__(self, images, masks, device=None, mode='train'):
         self.images = np.array(images)
-        self.masks = np.array(masks)
+        self.masks = np.array(masks) / 255.0
         # Transforming
         self.images = self.images.astype(np.float32) / 255.0
         self.masks = self.masks.astype(np.long)

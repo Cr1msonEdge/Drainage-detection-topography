@@ -30,22 +30,25 @@ class UNet(BaseModel):
                 encoder_weights=None,
                 classes=2
             )
-        
+        else:
+            raise Exception("Unexpected error when creating Unet.")
+
         # Adapting to 3 or 4 channels
-        self.model.encoder.conv1 = self.adapt_conv_layer(self.model.encoder.conv1, in_channels=config.num_channels)
-        
+        self.model.encoder.conv1 = self.adapt_conv_layer(self.model.encoder.conv1, in_channels=self.config.num_channels)
+
         # Freezing layers except of first conv
-        for param in self.model.encoder.parameters():
-            param.requires_grad = False
-        for param in self.model.encoder.conv1.parameters():
-            param.requires_grad = True
-        
-        self.model = self.model.to(self.base_device)
+        # for param in self.model.encoder.parameters():
+        #     param.requires_grad = False
+        # for param in self.model.encoder.conv1.parameters():
+        #     param.requires_grad = True
+
+        self.init_training_components()
+        self.model = self.model.to(self.device)
 
 
     def forward(self, images):
         return self.model(images)
 
     def compute_outputs(self, image):
-        return super().compute_outputs(image)
+        return self.model(image)
     

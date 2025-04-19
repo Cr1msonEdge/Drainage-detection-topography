@@ -1,8 +1,15 @@
+import rasterio
 from torch import save, load, unsqueeze, argmax, no_grad, stack, is_tensor
 from torch.nn import CrossEntropyLoss, Conv2d, init
+from torch.utils.data import DataLoader
 import pathlib
+from pathlib import Path
 import numpy as np
+import json
+
+from engine.model_utils import get_model_folder
 from helper.callbacks.visualize import show_prediction
+from helper.dataobj import *
 from helper.callbacks.metrics import get_iou
 from helper.models.config import Config
 from os import listdir
@@ -13,81 +20,51 @@ import matplotlib
 matplotlib.use("Agg")
 from IPython import display
 from tqdm import tqdm
-import lightning as pl
 import abc
 from helper.models.config import Config
 from torch.optim import Adam, AdamW, SGD
 from torch.optim.lr_scheduler import ReduceLROnPlateau, MultiStepLR
-import uuid
 import os
 import time
+from torch import nn
 
 
 MODELS_PATH = str(pathlib.Path(__file__).parent.resolve()) + '/saved'
 
 
-class BaseModel(pl.LightningModule):
-    _loaded_hparams = None
-
-    def __init__(self, model_name, config=None):
+class BaseModel:
+    def __init__(self, model_name, config=None, logger=None):
         """
         Params:
         model_name - name of the type of model (Segformer, Unet, DeepLab)
         config - configuration of class Config(). If none means the model is loading from checkpoint
         """
         super().__init__()
+
         self.model_name = model_name
+        self.config = config
+        self.device = self.config.device
+        self.compute_loss = nn.CrossEntropyLoss()
 
-        # Creating model
-        if config is not None:
-            self.config = config
-            self.unique_id = config.uid
-            # Saving hparams to log
-            hparams = {
-                'name': model_name,
-                **self.config.to_dict(),
-                'uid': self.unique_id
-            }
-        else:
-            # Loading model from checkpoint
-            if self.hparams is None or self.hparams == {}:
-                if self.__class__._loaded_hparams is not None:
-                    
-                    self.hparams.update(self.__class__._loaded_hparams)
-                    hparams = self._loaded_hparams
-                    hparams['time_iter'] = time.strftime("%Y%m%d-%H%M%S")
-                    
-                    self.config = Config(**self.__class__._loaded_hparams)
-                else:
-                    raise Exception(f"Fatal error: couldn't load model.")
-            else:
-                raise Exception(f"Fatal error: couldn't load model. Unexpected error")
-        self.save_hyperparameters(hparams)
+        self.unique_id = config.uid if hasattr(config, "uid") is not None else self.generate_id()
 
-        # Common parameters for new model and loaded one
-        if self.config.criterion == 'CrossEntropy':
-            self.loss = CrossEntropyLoss()
+        # Model's parameters
+        self.optimizer = None
+        self.scheduler = None
+        self.criterion = None
 
-        print(f"{model_name} initialized with hyperparams: {self.config.to_dict()}")
+        # Logging
+        self.logger = logger
 
-        # Saving metrics during epoch
-        self.training_step_loss = []
-        self.training_step_metric = []
-        
-        self.validation_step_loss = []
-        self.validation_step_metric = []
-        
-        self.test_step_loss = []
-        self.test_step_accuracy = []
-        self.test_step_precision = []
-        self.test_step_recall = []
-        self.test_step_f1 = []
-        self.test_step_iou = []
-        self.test_step_dice = []
-        
-        # Setting device
-        self.base_device = self.config.device
+    def init_training_components(self):
+        assert self.model is not None, "self.model must be defined before calling init_training_components()"
+        self.optimizer = self.configure_optimizer()
+        self.scheduler = self.configure_scheduler()
+        self.criterion = self.configure_loss()
 
+    def generate_id(self):
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        return timestamp
 
     def adapt_conv_layer(self, conv_layer, in_channels: int=4):
         """
@@ -117,32 +94,35 @@ class BaseModel(pl.LightningModule):
 
         return new_conv
 
-    def set_id(self, id):
-        self.unique_id = id
+    # ---------------------------------------
+    # Model's parameters
 
-    @classmethod
-    def load_from_checkpoint(cls, checkpoint_path, **kwargs):
-        # Loading checkpoint to load model and hyperparams
-        checkpoint = load(checkpoint_path, map_location="cpu")
-        # Get hyperparams from checkpoint
-        if "hyper_parameters" in checkpoint:
-            cls._loaded_hparams = checkpoint["hyper_parameters"]
+    def configure_optimizer(self):
+        if self.config.optimizer.lower() == "adam":
+            return torch.optim.Adam(self.model.parameters(), lr=self.config.learning_rate)
+        elif self.config.optimizer.lower() == "sgd":
+            return torch.optim.SGD(self.model.parameters(), lr=self.config.learning_rate, momentum=0.9)
+        else:
+            raise ValueError(f"Unknown optimizer: {self.config.optimizer}")
 
-        # Deleting optimizer and schedulers so Lightning can load it by itself
-        if "optimizer_states" in checkpoint:
-            del checkpoint["optimizer_states"]
-        if "lr_schedulers" in checkpoint:
-            del checkpoint["lr_schedulers"]
+    def configure_scheduler(self):
+        if self.config.scheduler is None:
+            return None
+        if self.config.scheduler.lower() == "steplr":
+            return torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=5, gamma=0.5)
+        elif self.config.scheduler.lower() == "none":
+            return None
+        else:
+            raise ValueError(f"Unknown scheduler: {self.config.scheduler}")
 
-        # Calling from Lightning
-        return super(BaseModel, cls).load_from_checkpoint(checkpoint_path, **kwargs)
-
+    def configure_loss(self):
+        return nn.CrossEntropyLoss()
 
     # ---------------------------------------
     # Model's functions
 
     @abc.abstractmethod
-    def forward(self, images):
+    def compute_outputs(self, images):
         pass
 
     def predict(self, image, mask, device, show_full=False, show=False):
@@ -165,7 +145,6 @@ class BaseModel(pl.LightningModule):
         image = unsqueeze(image, 0)
         mask = unsqueeze(mask, 0)
         with no_grad():
-
             output = self.compute_outputs(image)
             pred = argmax(output, dim=1).squeeze(0).cpu()  # Get the prediction
             if show_full:
@@ -175,197 +154,196 @@ class BaseModel(pl.LightningModule):
 
         return pred
 
+    def validate_loop(self, val_dataloader: DataLoader):
+        self.model.eval()
+        val_loss = 0.0
+        val_metric = 0.0
 
-    # ----------------------------------------
-    # Lightning
+        with torch.no_grad():
+            for images, masks in val_dataloader:
+                images, masks = images.to(self.device), masks.to(self.device).squeeze()
 
-    def training_step(self, batch, batch_idx):
-        images, masks = batch
-        masks = masks.squeeze()
-        outputs = self.forward(images)
-        loss = self.loss(outputs, masks)
-        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.training_step_loss.append(loss)
-        self.logger.experiment["train/loss"].append(loss.item())
+                outputs = self.compute_outputs(images)
+                loss = self.criterion(outputs, masks)
 
-        lr = self.trainer.optimizers[0].param_groups[0]['lr']
-        self.log('lr', lr, on_step=True, on_epoch=False, prog_bar=True)
-        self.logger.experiment["train/lr"].append(lr)
+                preds = argmax(outputs, dim=1)
+                val_loss += loss.item()
+                val_metric += get_iou(preds, masks)
 
-        preds = argmax(outputs, dim=1)
-        metric = get_iou(preds, masks)
-        self.log('train_metric', metric, on_step=False, on_epoch=True, prog_bar=True)
-        self.training_step_metric.append(metric)
-        self.logger.experiment["train/metric"].append(metric)
+        avg_val_loss = val_loss / len(val_dataloader)
+        avg_val_metric = val_metric / len(val_dataloader)
+        print(f"Validation Loss: {avg_val_loss:.4f} | Val Metric: {avg_val_metric:.4f}")
 
-        return loss
-    
-    def validation_step(self, batch, batch_idx):
-        images, masks = batch
-        masks = masks.squeeze()
-        outputs = self.forward(images)
-        loss = self.loss(outputs, masks)
-        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.validation_step_loss.append(loss)
-        self.logger.experiment["val/loss"].append(loss.item())
+        return avg_val_loss, avg_val_metric
 
-        preds = argmax(outputs, dim=1)
-        metric = get_iou(preds, masks)
-        self.log('val_metric', metric, on_step=False, on_epoch=True, prog_bar=True)
-        self.validation_step_metric.append(metric)
-        self.logger.experiment["val/metric"].append(metric)
 
-        return {
-            'val_loss': loss,
-            'val_metric': metric
-        }        
-        
-    def test_step(self, batch, batch_idx):
-        images, masks = batch
-        masks = masks.squeeze()
-        outputs = self.forward(images)
-        loss = self.loss(outputs, masks)
-        self.log('test_loss', loss, on_step=False, on_epoch=True)
-        self.test_step_loss.append(loss)
-        
-        preds = argmax(outputs, dim=1)
-        
-        accuracy = get_acc(preds, masks)
-        precision = get_prec(preds, masks)
-        recall = get_recall(preds, masks)
-        f1 = get_f1(preds, masks)
-        iou = get_iou(preds, masks)
-        dice = get_dice(preds, masks)
-        
-        # self.log('test_accuracy', accuracy, on_step=False, on_epoch=True)
-        # self.log('test_precision', precision, on_step=False, on_epoch=True)
-        # self.log('test_recall', recall, on_step=False, on_epoch=True)
-        # self.log('test_f1', f1, on_step=False, on_epoch=True)
-        # self.log('test_iou', iou, on_step=False, on_epoch=True)
-        # self.log('test_dice', dice, on_step=False, on_epoch=True)
+    def train_loop(self, train_loader: DataLoader, val_dataloader: DataLoader = None):
+        self.model.train()
 
-        self.test_step_accuracy.append(accuracy)
-        self.test_step_precision.append(precision)
-        self.test_step_recall.append(recall)
-        self.test_step_f1.append(f1)
-        self.test_step_iou.append(iou)
-        self.test_step_dice.append(dice)
+        for epoch in range(self.config.num_epochs):
+            running_loss = 0.0
+            running_metric = 0.0
 
-        return {
-            'test_loss': loss,
-            'test_accuracy': accuracy, 
-            'test_precision': precision, 
-            'test_recall': recall, 
-            'test_f1': f1, 
-            'test_iou': iou, 
-            'test_dice': dice, 
-        }        
-    
-    def on_train_epoch_end(self):
-        avg_train_loss = sum(self.training_step_loss) / len(self.training_step_loss)
-        avg_train_metric = sum(self.training_step_metric) / len(self.training_step_metric)
-        
-        self.log('avg_train_loss', avg_train_loss)
-        self.log('avg_train_metric', avg_train_metric)
+            for images, masks in train_loader:
+                images, masks = images.to(self.device), masks.to(self.device).squeeze()
+                self.optimizer.zero_grad()
+                outputs = self.compute_outputs(images)
+                loss = self.compute_loss(outputs, masks)
+                loss.backward()
+                self.optimizer.step()
+                preds = argmax(outputs, dim=1)
+                running_loss += loss.item()
+                running_metric += get_iou(preds, masks)
 
-        self.training_step_loss.clear()
-        self.training_step_metric.clear()
-    
-    def on_validation_epoch_end(self):
-        avg_validation_loss = sum(self.validation_step_loss) / len(self.validation_step_loss)
-        avg_validation_metric = sum(self.validation_step_metric) / len(self.validation_step_metric)
-        
-        self.log('avg_val_loss', avg_validation_loss)
-        self.log('avg_val_metric', avg_validation_metric)
+            avg_train_loss = running_loss / len(train_loader)
+            avg_train_metric = running_metric / len(train_loader)
 
-        self.validation_step_loss.clear()
-        self.validation_step_metric.clear()
-    
-    def on_test_epoch_end(self):
-        self.hparams.test_iter += 1
-        self.save_hyperparameters(self.hparams)
-        avg_test_loss = sum(self.test_step_loss) / len(self.test_step_loss)
-        avg_test_accuracy = sum(self.test_step_accuracy) / len(self.test_step_accuracy)
-        avg_test_precision = sum(self.test_step_precision) / len(self.test_step_precision)
-        avg_test_recall = sum(self.test_step_recall) / len(self.test_step_recall)
-        avg_test_f1 = sum(self.test_step_f1) / len(self.test_step_f1)
-        avg_test_iou = sum(self.test_step_iou) / len(self.test_step_iou)
-        avg_test_dice = sum(self.test_step_dice) / len(self.test_step_dice)
+            print(f"[Epoch {epoch+1}] Train Loss: {avg_train_loss:.4f} | Train Metric: {avg_train_metric:.4f}")
 
-        self.log('avg_test_loss', avg_test_loss)
-        self.log('avg_test_accuracy', avg_test_accuracy)
-        self.log('avg_test_precision', avg_test_precision)
-        self.log('avg_test_recall', avg_test_recall)
-        self.log('avg_test_f1', avg_test_f1)
-        self.log('avg_test_iou', avg_test_iou)
-        self.log('avg_test_dice', avg_test_dice)
+            # Validation loop
+            val_loss, val_metric = self.validate_loop(val_dataloader)
+            if self.scheduler:
+                self.scheduler.step()
 
-        # Создаем словарь с итоговыми тестовыми метриками
-        test_metrics = {
-            "loss": avg_test_loss,
-            "accuracy": avg_test_accuracy,
-            "precision": avg_test_precision,
-            "recall": avg_test_recall,
-            "f1": avg_test_f1,
-            "iou": avg_test_iou,
-            "dice": avg_test_dice,
+            self.log_metrics({
+                "train_loss": avg_train_loss,
+                "train_metric": avg_train_metric,
+                "val_loss": val_loss,
+                "val_metric": val_metric,
+                "lr": self.optimizer.param_groups[0]["lr"]
+            }, step=epoch)
+
+            print("===============")
+        self.save_model()
+
+    def test_loop(self, dataloader, save_chart=True):
+        self.model.eval()
+
+        test_loss = 0.0
+        total_batches = 0
+
+        test_iou = 0.0
+        test_acc = 0.0
+        test_prec = 0.0
+        test_recall = 0.0
+        test_f1 = 0.0
+        test_dice = 0.0
+
+        device = self.config.device
+
+        for images, masks in tqdm(dataloader, desc="Testing"):
+            inputs, masks = images.to(device), masks.to(device).squeeze()
+
+            outputs = self.model(inputs)
+            loss = self.compute_loss(outputs, masks)
+
+            preds = torch.argmax(outputs, dim=1)
+
+            test_loss += loss
+            test_iou += get_iou(preds, masks)
+            test_acc += get_acc(preds, masks)
+            test_prec += get_prec(preds, masks)
+            test_recall += get_recall(preds, masks)
+            test_f1 += get_f1(preds, masks)
+            test_dice += get_dice(preds, masks)
+
+            total_batches += 1
+
+        metrics = {
+            'loss': test_loss,
+            'acc': test_acc / total_batches,
+            'prec': test_prec / total_batches,
+            'recall': test_recall / total_batches,
+            'f1': test_f1 / total_batches,
+            'iou': test_iou / total_batches,
+            'dice': test_dice / total_batches
         }
 
-        # Сохраняем столбчатую диаграмму
-        tmp_dir = "tmp_images"
-        os.makedirs(tmp_dir, exist_ok=True)
-        # unique_id = str(uuid.uuid4())[:4]
-        chart_path = os.path.join(tmp_dir, f"test-{self.model_name}-{self.config.uid}-{self.config.TEST_ITER}.png")
-        self.save_test_metrics_bar_chart(test_metrics, chart_path)
 
-        # Загружаем диаграмму в Neptune
-        self.logger.experiment["test/metrics_bar_chart"].upload(chart_path)
+        print("=== Test metrics ===")
+        for key, value in metrics.items():
+            print(f"{key}: {value:.4f}")
+            if self.logger:
+                self.logger.log_metric(f"test_{key}", value)
+            metrics[key] = metrics[key].detach().cpu().item()
 
-    def configure_optimizers(self):
-        if self.config.optimizer == 'Adam':
-            optimizer = Adam(self.model.parameters(), lr=self.config.LEARNING_RATE)
-        elif self.config.optimizer == 'AdamW':
-            optimizer = AdamW(self.model.parameters(), lr=self.config.LEARNING_RATE)
-        elif self.config.optimizer == 'SGD':
-            optimizer = SGD(self.model.parameters(), lr=self.config.LEARNING_RATE)
-        else:
-            raise Exception(f"Optimizer {self.config.optimizer} not from list of available optimizers.")
+        if save_chart:
+            self.save_test_metrics_bar_chart(metrics, f"{self.model_name}-{self.unique_id}-{time.strftime("%Y%m%d-%H%M%S")}")
 
-        if self.config.scheduler is not None:
-            if self.config.scheduler == 'Plateau':
-                return (
-                    {
-                        "optimizer": optimizer,
-                        "lr_scheduler": {
-                            ReduceLROnPlateau(optimizer, **self.config.scheduler_params)
-                        }
-                    }
-                )
+        return metrics
 
-            if self.config.scheduler == 'MultistepLR':
-                return (
-                    {
-                        "optimizer": optimizer,
-                        "lr_scheduler": {
-                            MultiStepLR(optimizer, **self.config.scheduler_params)
-                        }
-                    }
-                )
+    # ----------------------------------------
+    # Logging functions
+    def set_logger(self, logger):
+        self.logger = logger
 
-        return optimizer
+    def log_metrics(self, metrics: dict, step: int = 0):
+        if self.logger:
+            for k, v in metrics.items():
+                self.logger.log_metric(k, v, step=step)
+
+
+    def save_model(self):
+        model_folder = get_model_folder(self.model_name)
+        os.makedirs(os.path.dirname(model_folder), exist_ok=True)
+        filename = f"{self.model_name}-{self.unique_id}.pt"
+        path = os.path.join(model_folder, filename)
+
+        torch.save({
+            "model_state_dict": self.model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "scheduler_state_dict": self.scheduler.state_dict() if self.scheduler else None,
+            "config": self.config.to_dict()
+        }, path)
+
+        print(f"Model saved to: {path}")
+
+    @classmethod
+    def load_model(cls, filename):
+        model_folder = get_model_folder(filename.split('-')[0])
+        path = os.path.join(model_folder, f"{filename}")
+        # print(f"Looking at {str(path)}")
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Checkpoint not found at {path}")
+
+        checkpoint = torch.load(path, map_location="cpu")
+
+        config = Config(**checkpoint["config"])
+
+        model = cls(config)
+        model.unique_id = filename.split('-')[1]
+
+        model.model.load_state_dict(checkpoint["model_state_dict"])
+        model.model.to(config.device)
+
+        model.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        for state in model.optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(config.device)
+
+        if "scheduler_state_dict" in checkpoint and checkpoint["scheduler_state_dict"] is not None:
+            if model.scheduler:
+                model.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
+        return model
 
 
     # ---------------------------------------------
     # Extra functionality
 
-    @staticmethod
-    def save_test_metrics_bar_chart(test_metrics, save_path):
+    def save_test_metrics_bar_chart(self, test_metrics, save_path):
         """
+        Save bar chart as the result of
         test_metrics: dict, where key is - name of metric, value - float value.
         save_path: path to save image
         """
+        # Get images test folder
+        curr_path = Path(__file__).resolve()
+        folder = curr_path.parent.parent.parent / 'test_images'
+
         metric_names = list(test_metrics.keys())
-        values = [test_metrics[name].cpu() for name in metric_names]
+        values = [test_metrics[name] for name in metric_names]
 
         plt.figure(figsize=(8, 6))
         bars = plt.bar(metric_names, values, color='skyblue')
@@ -379,11 +357,15 @@ class BaseModel(pl.LightningModule):
             plt.text(bar.get_x() + bar.get_width() / 2, yval, f'{yval:.2f}', va='bottom', ha='center')
 
         plt.tight_layout()
-        plt.savefig(save_path)
+
+        plt.savefig(folder / save_path)
+
+        if self.logger:
+            self.logger.log_figure(plt.gcf(), artifact_file=save_path+".png")
+
         plt.close()
 
-    @staticmethod
-    def split_tif_into_patches(image, patch_size=256, pad=False):
+    def split_tif_into_patches(self, image, patch_size=256, pad=False):
         """
         Return patches from cut image
         """
@@ -418,30 +400,36 @@ class BaseModel(pl.LightningModule):
         return reconstructed_image
 
 
-    def predict_from_tif(self, tif_path: str, threshold: float = 0.3, patch_size: int = 256, return_mask: bool = True):
-        """
-        Полный pipeline: из .tif -> патчи -> предикт -> склейка
-        """
+    def predict_from_tif(self, tif_path: str, threshold: float = 0.3, patch_size: int = 256, return_mask: bool = True, save_path=None):
         # 1. Нарезаем изображение на патчи
-        image_patches, valid_indices, original_shape = self.split_tif_into_patches(
-            tif_path, patch_size=patch_size, return_shape=True
-        )
+        with rasterio.open(tif_path) as src:
+            image = src.read([1, 2, 3]).transpose(1, 2, 0)  # Read RGB channels
+            h, w, c = image.shape
 
-        # 2. Предсказываем для каждого патча
-        preds = []
-        for patch in image_patches:
-            input_tensor = self.preprocess_patch(patch)  # Например, нормализация
-            pred = self.forward(input_tensor.unsqueeze(0).to(self.device))
-            pred_mask = self.postprocess_pred(pred)  # Приведение к (H, W)
-            preds.append(pred_mask)
+        # Step 2: Split the image into patches (with optional padding if needed)
+        patches = self.split_tif_into_patches(image, patch_size, pad=True)
 
-        preds = np.stack(preds)  # (N, H, W)
+        # Step 3: Prepare batches for inference
+        model = self.model  # Assuming self.model is the trained model
+        pred_patches = []
 
-        # 3. Склеиваем патчи обратно в маску
-        final_mask = self.reconstruct_mask_from_patches(preds, valid_indices, original_shape, patch_size=patch_size)
+        for patch in patches:
+            patch_tensor = torch.from_numpy(patch).float().unsqueeze(0).permute(0, 3, 1, 2).to(self.device)
+            with torch.no_grad():
+                pred = model.predict(patch_tensor)
+            pred_patches.append(pred.cpu().numpy().squeeze())  # Convert predictions to numpy
 
+        # Step 4: Reconstruct the full mask from the predicted patches
+        reconstructed_mask = self.reconstruct_mask_from_patches(pred_patches, (h, w), patch_size)
+
+        # Step 5: Optionally save the reconstructed mask to a file
+        if save_path:
+            with rasterio.open(save_path, 'w', driver='GTiff', count=1, dtype='uint8', width=w, height=h) as dst:
+                dst.write(reconstructed_mask, 1)
+
+        # Step 6: Return the reconstructed mask if needed
         if return_mask:
-            return final_mask
+            return reconstructed_mask
 
             
 #     def save(self):

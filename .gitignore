@@ -169,3 +169,6 @@ image_patches.npy
 mask_patches.npy
 source_images
 datasets/
+mlflow/
+mlruns/
+*.pt

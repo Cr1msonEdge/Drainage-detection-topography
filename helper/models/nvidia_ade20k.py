@@ -22,7 +22,8 @@ class NvidiaSegformer(BaseModel):
         for name, param in self.model.segformer.encoder.named_parameters():
             if "patch_embeddings.0.projection" not in name:
                 param.requires_grad = False
-        
+
+        self.init_training_components()
         self.model.to(self.base_device)
         
         self.feature_extractor = SegformerFeatureExtractor(do_resize=True, size=(256, 256))

@@ -11,9 +11,9 @@ class Config:
     """
     
     def __init__(self, opt=None, crit=None, lr=1e-4, num_epochs=100, batch_size=64, scheduler=None, device=None, scheduler_params=None, uid=None, dataset_name=None, num_channels=3, **kwargs):
-        self.NUM_EPOCHS = num_epochs
-        self.BATCH_SIZE = batch_size
-        self.LEARNING_RATE = lr
+        self.num_epochs = num_epochs
+        self.batch_size = batch_size
+        self.learning_rate = lr
         self.scheduler = scheduler
         self.uid = uid
         self.dataset_name = dataset_name
@@ -60,16 +60,16 @@ class Config:
         self.criterion = crit if crit is not None else "CrossEntropy"
         
     def __str__(self):
-        return f"Epochs: {self.NUM_EPOCHS}, lr: {self.LEARNING_RATE}, batch_size: {self.BATCH_SIZE}, optimizer: {self.optimizer}, criterion: {self.criterion}"
+        return f"Epochs: {self.num_epochs}, lr: {self.learning_rate}, batch_size: {self.batch_size}, optimizer: {self.optimizer}, criterion: {self.criterion}"
     
     def to_dict(self):
         return {
             'uid': self.uid,
-            'num_epochs': self.NUM_EPOCHS,
-            'batch_size': self.BATCH_SIZE,
+            'num_epochs': self.num_epochs,
+            'batch_size': self.batch_size,
             'opt': self.optimizer,
             'crit': self.criterion,
-            'learning_rate': self.LEARNING_RATE,
+            'learning_rate': self.learning_rate,
             'scheduler': self.scheduler,
             'dataset_name': self.dataset_name,
             'num_channels': self.num_channels

@@ -12,13 +12,15 @@ class DeepLab(BaseModel):
         self.model = DeepLabV3Plus(encoder_weights="imagenet", in_channels=4, classes=2)
 
         # Adapting to channels
-        self.model.encoder.conv1 = self.adapt_conv_layer(self.model.encoder.conv1, in_channels=config.num_channels)
+        self.model.encoder.conv1 = self.adapt_conv_layer(self.model.encoder.conv1, in_channels=self.config.num_channels)
         
         # Freezing layers except of first conv layer
         for param in self.model.encoder.parameters():
             param.requires_grad = False
         for param in self.model.encoder.conv1.parameters():
             param.requires_grad = True
+
+        self.init_training_components()
         self.model = self.model.to(self.base_device)
 
     def compute_outputs(self, images):
