@@ -53,16 +53,17 @@ def run_training(model_name, config: Config, tags=None, description=None):
         if description:
             mlflow.set_tag("description", description)
 
-    model.logger = mlflow
+        model.logger = mlflow
 
-    print("=== Training ===")
-    # Training
-    model.train_loop(dataloader, val_loader)
-    print("=== Training finished ===")
-    print(f"Saved into {get_model_folder(model_name, verbose=-1)}/{model_name}-{model.unique_id}.ckpt")
-    print(f"Config is {model.config}")
+        print("=== Training ===")
+        # Training
+        model.train_loop(dataloader, val_loader)
+        print("=== Training finished ===")
+        print(f"Saved into {get_model_folder(model_name, verbose=-1)}/{model_name}-{model.unique_id}.ckpt")
+        print(f"Config is {model.config}")
 
-    mlflow.pytorch.log_model(model.model, artifact_path="models")
+        mlflow.pytorch.log_model(model.model, artifact_path="models")
+        
     return f"{model_name}-{model.unique_id}"
 
 if __name__ == "__main__":

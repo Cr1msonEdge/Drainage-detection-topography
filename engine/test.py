@@ -11,7 +11,7 @@ from mlflow import start_run, log_params, log_metrics
 from helper.api_key import *
 
 
-def run_test(model_name):
+def run_test(model_name, tags=None):
     # Setting up model
     # assert model_name in MODEL_NAMES, f"Model {model_name} is not found."
     print("=== Starting test ===")
@@ -40,7 +40,12 @@ def run_test(model_name):
         name=model.config.dataset_name
     )
 
+    test_metrics = {}
+
     with mlflow.start_run(run_name=f"{model_name}_test"):
+        if tags:
+            mlflow.set_tags(tags)
+        
         print("=== Running test ===")
         model.set_logger(mlflow)
         test_metrics = model.test_loop(test_loader)
@@ -50,7 +55,8 @@ def run_test(model_name):
         for metric, value in test_metrics.items():
             mlflow.log_metric(metric, value)
 
-    print("=== Test finished ===")
+        print("=== Test finished ===")
+        
     print("Metrics:")
     for k, v in test_metrics.items():
         print(f"{k}: {v:.4f}")
