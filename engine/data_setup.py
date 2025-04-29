@@ -34,7 +34,7 @@ def get_dataset_folder(name=None):
     return datasets_dir / name
         
 
-def get_dataset(mode='train', name=None, device=None):
+def get_dataset(mode='train', name=None, device=None, channels=4, clahe=False, dilate_mask=False):
     """
     Return dataset
     
@@ -60,7 +60,10 @@ def get_dataset(mode='train', name=None, device=None):
             images = np.load(f"{data_dir}/images.npy")
             masks = np.load(f"{data_dir}/masks.npy")
             
-            data = DrainageDataset(images=images, masks=masks, mode=mode)
+            if channels == 3:
+                images = images[:, :, :, :3]
+            
+            data = DrainageDataset(images=images, masks=masks, mode=mode, clahe=clahe, dilate_mask=dilate_mask)
             
             return data
 
@@ -70,7 +73,7 @@ def get_dataset(mode='train', name=None, device=None):
         raise Exception(f"{data_dir} doesn't exist.")
 
 
-def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_workers=0):
+def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_workers=0, channels=4, clahe=False, dilate_mask=False):
     """
     Return dataloader
     
@@ -86,6 +89,7 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
         
     if name is None:
         name = DATASET_NAMES[0]
+        print(f"WARNING: dataset name is None")
     
     
     data_dir = get_dataset_folder(name) / mode
@@ -97,7 +101,10 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
             images = np.load(f"{data_dir}/images.npy")
             masks = np.load(f"{data_dir}/masks.npy")
             
-            data = DrainageDataset(images=images, masks=masks, mode=mode)
+            if channels == 3:
+                images = images[:, :, :, :3]
+                
+            data = DrainageDataset(images=images, masks=masks, mode=mode, clahe=clahe, dilate_mask=dilate_mask)
             dataloader = DataLoader(dataset=data, batch_size=batch_size, num_workers=num_workers)
             
             return dataloader

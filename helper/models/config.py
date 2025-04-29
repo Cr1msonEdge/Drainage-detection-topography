@@ -10,7 +10,7 @@ class Config:
     Class for configs
     """
     
-    def __init__(self, opt=None, crit=None, lr=1e-4, num_epochs=100, batch_size=64, scheduler=None, device=None, scheduler_params=None, uid=None, dataset_name=None, num_channels=3, **kwargs):
+    def __init__(self, opt=None, crit=None, lr=1e-4, num_epochs=100, batch_size=64, scheduler=None, device=None, scheduler_params=None, uid=None, dataset_name=None, num_channels=4, **kwargs):
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = lr

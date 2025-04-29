@@ -93,7 +93,7 @@ def show_prediction(image, pred, mask):
     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 10))
 
     # Image should be 256 x 256 x 
-    axs[0][0].imshow(transpose(image, (1, 2, 0)))
+    axs[0][0].imshow(image)
     axs[0][0].set_title("Original Image")
     axs[0][0].axis('off')
     
@@ -211,63 +211,56 @@ def compare_models_sns_barplot(models, metrics_dict, hyperparams_dict):
 def show_prediction(image, pred, mask, show_intersection=False):
     # Transform the prediction and mask to numpy
     pred = pred.numpy()
-    if intersection:
-        if not show_intersection:
-            # Showing original image, mask, prediction 
-            intersection = logical_and(pred, mask)
-            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(15, 10))
-            
-            axs[0][0].imshow(transpose(image, (1, 2, 0)))
-            axs[0][0].set_title("Original Image")
-            axs[0][0].axis('off')
-            
-            # Prediction, mask and intersection are 256 x 256
-            axs[0][1].imshow(pred, cmap='gray')
-            axs[0][1].set_title("Model Prediction")
-            axs[0][1].axis('off')
-
-            print(f"mask: {mask.shape}")
-
-            axs[0][2].imshow(mask, cmap='gray')
-            axs[0][2].set_title("Ground Truth Mask")
-            axs[0][2].axis('off')
-            print(f"inter: {intersection.shape}")
+    
+    if not show_intersection:
+        # Showing original image, mask, prediction 
+        intersection = logical_and(pred, mask)
+        fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(15, 10))
+        axs[0].imshow(transpose(image, (1, 2, 0))[:, :, :3])
+        axs[0].set_title("Original Image")
+        axs[0].axis('off')
         
-        else:
-            # Showing original image, mask, prediction and intersection 
-            # Creating the intersection of the mask and
-            intersection = logical_and(pred, mask)
+        # Prediction, mask and intersection are 256 x 256
+        axs[1].imshow(pred, cmap='gray')
+        axs[1].set_title("Model Prediction")
+        axs[1].axis('off')
 
-            # Showing images
-            fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 10))
+        print(f"mask: {mask.shape}")
 
-            # Image should be 256 x 256 x 3
-            axs[0][0].imshow(transpose(image, (1, 2, 0)))
-            axs[0][0].set_title("Original Image")
-            axs[0][0].axis('off')
-            
-            # Prediction, mask and intersection are 256 x 256
-            axs[0][1].imshow(pred, cmap='gray')
-            axs[0][1].set_title("Model Prediction")
-            axs[0][1].axis('off')
-
-            print(f"mask: {mask.shape}")
-
-            axs[1][0].imshow(mask, cmap='gray')
-            axs[1][0].set_title("Ground Truth Mask")
-            axs[1][0].axis('off')
-            print(f"inter: {intersection.shape}")
-
-            axs[1][1].imshow(intersection, cmap='gray')
-            axs[1][1].set_title("Intersection (Prediction & Mask)")
-            axs[1][1].axis('off')
+        axs[2].imshow(mask, cmap='gray')
+        axs[2].set_title("Ground Truth Mask")
+        axs[2].axis('off')
+        print(f"inter: {intersection.shape}")
     
     else:
-        # Showing prediction only
-        fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(10, 10))
-        axs[0][0].imshow(pred, cmap='gray')
-        axs[0][0].set_title("Model Prediction")
+        # Showing original image, mask, prediction and intersection 
+        # Creating the intersection of the mask and
+        intersection = logical_and(pred, mask)
+
+        # Showing images
+        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 10))
+
+        # Image should be 256 x 256 x 3
+        axs[0][0].imshow(transpose(image, (1, 2, 0)))
+        axs[0][0].set_title("Original Image")
         axs[0][0].axis('off')
+        
+        # Prediction, mask and intersection are 256 x 256
+        axs[0][1].imshow(pred, cmap='gray')
+        axs[0][1].set_title("Model Prediction")
+        axs[0][1].axis('off')
+
+        print(f"mask: {mask.shape}")
+
+        axs[1][0].imshow(mask, cmap='gray')
+        axs[1][0].set_title("Ground Truth Mask")
+        axs[1][0].axis('off')
+        print(f"inter: {intersection.shape}")
+
+        axs[1][1].imshow(intersection, cmap='gray')
+        axs[1][1].set_title("Intersection (Prediction & Mask)")
+        axs[1][1].axis('off')
+    
         
     plt.show()
 

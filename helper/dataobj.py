@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 import torch
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.cuda import is_available
@@ -10,7 +11,7 @@ class DrainageDataset(Dataset):
     """
     Class to work with images 
     """
-    def __init__(self, images, masks, device=None, mode='train'):
+    def __init__(self, images, masks, device=None, mode='train', clahe=True, dilate_mask=False):
         self.images = np.array(images)
         self.masks = np.array(masks) 
         # Transforming
@@ -25,6 +26,28 @@ class DrainageDataset(Dataset):
         
         self.mode = mode
         self.num_channels = self.images.shape[-1]  # For 3 or 4 channel images
+        self.color_jitter = A.ColorJitter(brightness=0.2, contrast=0.2) 
+
+        self.clahe_contrast = clahe
+        self.clahe_clip_limit = 2.0
+        self.clahe_tile_grid = (8, 8)
+
+        # Mask dilation settings
+        self.dilate_mask = dilate_mask
+        self.dilation_kernel_size = 3
+        self.dilation_iterations = 1
+        # Normalization 
+        # self.rgb_mean = [0.624, 0.642, 0.624]
+        # self.rgb_std = [0.2, 0.2, 0.2]
+        # self.dem_mean = [0.432]
+        # self.dem_std = [0.087]
+        
+        # if self.num_channels == 4:
+        #     self.channels_means = self.rgb_mean + self.dem_mean
+        #     self.channels_stds = self.rgb_std + self.dem_std
+        # else:
+        #     self.channels_means = self.rgb_mean
+        #     self.channels_stds = self.rgb_std
         
     def __len__(self):
         return len(self.images)
@@ -32,41 +55,70 @@ class DrainageDataset(Dataset):
     def __getitem__(self, idx):
         image = self.images[idx]  # shape: (H, W, 4)
         mask = self.masks[idx]    # shape: (H, W)
-        
-        # Augmentation
+
+        rgb = image[:, :, :3]
+        if self.num_channels == 4:
+            dem = image[:, :, 3:]
+
+        if self.clahe_contrast:
+            rgb = self.apply_clahe_to_rgb(rgb)
+
         if self.mode == 'train':
-            transform = A.Compose([
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.5),
-                A.RandomRotate90(p=0.25),
-                A.RandomRotate90(p=0.25),
-            ])
-        else:
-            transform = A.Compose([])
-
-        data = transform(image=image, mask=mask)
-        image_aug = data['image']
-        mask = data['mask']
-
-        
-        if self.mode == 'train':
-            rgb = image_aug[:, :, :3]  
-            if self.num_channels == 4: 
-                dem = image_aug[:, :, 3:] 
-
-            color_jitter = A.ColorJitter(brightness=0.2, contrast=0.2)  
-            rgb_jittered = color_jitter(image=rgb)['image']
-
+            rgb_jittered = self.color_jitter(image=rgb)['image']
+            
             if self.num_channels == 4:
                 image_aug = np.concatenate([rgb_jittered, dem], axis=2)
             else:
                 image_aug = rgb_jittered
+                
+            transform = A.Compose([
+                    A.HorizontalFlip(p=0.5),
+                    A.VerticalFlip(p=0.5),
+                    A.RandomRotate90(p=0.25),
+                    A.RandomRotate90(p=0.25),
+                ])
+            
+        else:
+            if self.num_channels == 4:
+                image_aug = np.concatenate([rgb, dem], axis=2)
+            else:
+                image_aug = rgb
 
-        image_aug = np.transpose(image_aug, (2, 0, 1))  
+            transform = A.Compose([])
+            
+        data = transform(image=image_aug, mask=mask)
+        image_aug = data['image']
+        mask = data['mask']
+
+        if self.dilate_mask:
+            mask = self.dilate_mask_fn(mask)
+
+        image_aug = np.transpose(image_aug, (2, 0, 1))
         image = torch.tensor(image_aug, dtype=torch.float32)
         mask = torch.tensor(mask, dtype=torch.long)
 
         return image, mask
+
+    def apply_clahe_to_rgb(self, rgb):
+        """
+        Apply CLAHE to each channel separately
+        """
+        clahe = cv2.createCLAHE(clipLimit=self.clahe_clip_limit, tileGridSize=self.clahe_tile_grid)
+        rgb_clahe = np.zeros_like(rgb)
+        for i in range(3):
+            rgb_channel = (rgb[:, :, i] * 255).astype(np.uint8)
+            rgb_channel = clahe.apply(rgb_channel)
+            rgb_clahe[:, :, i] = rgb_channel
+        return rgb_clahe.astype(np.float32) / 255.0
+
+    def dilate_mask_fn(self, mask):
+        """
+        Dilate mask using OpenCV morphology
+        """
+        kernel = np.ones((self.dilation_kernel_size, self.dilation_kernel_size), np.uint8)
+        mask = mask.astype(np.uint8)
+        dilated = cv2.dilate(mask, kernel, iterations=self.dilation_iterations)
+        return dilated
 
     def get_images(self):
         return self.images
@@ -86,11 +138,12 @@ class DrainageDataset(Dataset):
             image, mask = self[idx]            
             image = image.numpy()
             mask = mask.numpy()
-            
-            rgb = np.transpose(image[:3], (1, 2, 0))
-            print(rgb)
-            dem = image[3] if self.num_channels == 4 else None
-            
+            print(image.shape)
+            print(mask.shape)
+            rgb = np.transpose(image[:3, :, :], (1, 2, 0))
+            print(rgb.shape)
+            dem = image[3, :, :] if self.num_channels == 4 else None
+            print(f"dem = {dem}")
         else:
             image = self.images[idx]  # (H, W, 4)
             mask = self.masks[idx]   # (H, W)

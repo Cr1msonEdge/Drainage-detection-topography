@@ -2,13 +2,11 @@ import argparse
 import logging
 from helper.models.config import Config
 from engine.model_utils import *
-from helper.callbacks.metrics import NeptuneCallback
 from helper.models.unet import *
 from helper.models.deeplab_mobilenet import *
 from helper.models.nvidia_ade20k import *
 from engine.data_setup import *
 from engine.model_utils import *
-from helper.api_key import *
 import mlflow
 import mlflow.pytorch
 
@@ -32,12 +30,12 @@ def run_training(model_name, config: Config, tags=None, description=None):
     
     print("=== Setting up dataloader === ")
     # Getting dataloader
-    dataloader = get_dataloader(mode='train', device=config.device, batch_size=config.batch_size, name=config.dataset_name)
-    val_loader = get_dataloader(mode='val', device=config.device, batch_size=config.batch_size, name=config.dataset_name)
+    dataloader = get_dataloader(mode='train', device=config.device, batch_size=config.batch_size, name=config.dataset_name, channels=config.num_channels, clahe=True, dilate_mask=True)
+    val_loader = get_dataloader(mode='val', device=config.device, batch_size=config.batch_size, name=config.dataset_name, channels=config.num_channels, clahe=True, dilate_mask=True)
 
     print("=== Setting up MLflow ===")
     mlflow.set_experiment(config.dataset_name)
-    with mlflow.start_run(run_name=model_name) as run:
+    with mlflow.start_run(run_name=f"{model_name}-{model.unique_id}") as run:
         mlflow.log_params({
             "epochs": config.num_epochs,
             "batch_size": config.batch_size,
@@ -59,7 +57,7 @@ def run_training(model_name, config: Config, tags=None, description=None):
         # Training
         model.train_loop(dataloader, val_loader)
         print("=== Training finished ===")
-        print(f"Saved into {get_model_folder(model_name, verbose=-1)}/{model_name}-{model.unique_id}.ckpt")
+        print(f"Saved into {get_model_folder(model_name, verbose=-1)}/{model_name}-{model.unique_id}.pt")
         print(f"Config is {model.config}")
 
         mlflow.pytorch.log_model(model.model, artifact_path="models")

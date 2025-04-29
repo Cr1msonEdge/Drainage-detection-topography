@@ -8,7 +8,6 @@ from engine.data_setup import *
 from engine.model_utils import *
 import mlflow
 from mlflow import start_run, log_params, log_metrics
-from helper.api_key import *
 
 
 def run_test(model_name, tags=None):
@@ -37,10 +36,10 @@ def run_test(model_name, tags=None):
         mode="test",
         device=model.config.device,
         batch_size=model.config.batch_size,
-        name=model.config.dataset_name
+        name=model.config.dataset_name,
+        channels=model.config.num_channels,
+        clahe=True
     )
-
-    test_metrics = {}
 
     with mlflow.start_run(run_name=f"{model_name}_test"):
         if tags:
@@ -50,16 +49,7 @@ def run_test(model_name, tags=None):
         model.set_logger(mlflow)
         test_metrics = model.test_loop(test_loader)
 
-        # Логируем в MLflow
-        print("=== Logging results ===")
-        for metric, value in test_metrics.items():
-            mlflow.log_metric(metric, value)
-
         print("=== Test finished ===")
-        
-    print("Metrics:")
-    for k, v in test_metrics.items():
-        print(f"{k}: {v:.4f}")
 
 if __name__ == "__main__":
     print('asd')

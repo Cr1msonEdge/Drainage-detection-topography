@@ -24,7 +24,7 @@ class NvidiaSegformer(BaseModel):
                 param.requires_grad = False
 
         self.init_training_components()
-        self.model.to(self.base_device)
+        self.model.to(self.device)
         
         self.feature_extractor = SegformerFeatureExtractor(do_resize=True, size=(256, 256))
     

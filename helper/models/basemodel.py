@@ -268,7 +268,7 @@ class BaseModel:
             metrics[key] = metrics[key].detach().cpu().item()
 
         if save_chart:
-            self.save_test_metrics_bar_chart(metrics, f"{self.model_name}-{self.unique_id}-{time.strftime("%Y%m%d-%H%M%S")}")
+            self.save_test_metrics_bar_chart(metrics, f"{self.model_name}-{self.unique_id}-{time.strftime('%Y%m%d-%H%M%S')}")
 
         return metrics
 

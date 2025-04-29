@@ -21,7 +21,7 @@ class DeepLab(BaseModel):
             param.requires_grad = True
 
         self.init_training_components()
-        self.model = self.model.to(self.base_device)
+        self.model = self.model.to(self.device)
 
     def compute_outputs(self, images):
         return self.model(images)["out"]
