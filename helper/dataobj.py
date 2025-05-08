@@ -54,7 +54,7 @@ class DrainageDataset(Dataset):
         
     def __getitem__(self, idx):
         image = self.images[idx]  # shape: (H, W, 4)
-        mask = self.masks[idx]    # shape: (H, W)
+        mask = self.masks[idx]  # shape: (H, W)
 
         rgb = image[:, :, :3]
         if self.num_channels == 4:

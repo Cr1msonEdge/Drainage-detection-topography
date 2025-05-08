@@ -30,8 +30,8 @@ def run_training(model_name, config: Config, tags=None, description=None):
     
     print("=== Setting up dataloader === ")
     # Getting dataloader
-    dataloader = get_dataloader(mode='train', device=config.device, batch_size=config.batch_size, name=config.dataset_name, channels=config.num_channels, clahe=True, dilate_mask=True)
-    val_loader = get_dataloader(mode='val', device=config.device, batch_size=config.batch_size, name=config.dataset_name, channels=config.num_channels, clahe=True, dilate_mask=True)
+    dataloader = get_dataloader(mode='train', device=config.device, batch_size=config.batch_size, name=config.dataset_name, channels=config.num_channels, clahe=False, dilate_mask=False)
+    val_loader = get_dataloader(mode='val', device=config.device, batch_size=config.batch_size, name=config.dataset_name, channels=config.num_channels, clahe=False, dilate_mask=False)
 
     print("=== Setting up MLflow ===")
     mlflow.set_experiment(config.dataset_name)

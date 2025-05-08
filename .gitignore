@@ -163,6 +163,8 @@ api_key.py
 
 images.npy
 masks.npy
+images2.npy
+masks2.npy
 .helper\models\saved\Unet\Unet-6226583f.ckpt
 *.ckpt
 image_patches.npy
@@ -172,3 +174,6 @@ datasets/
 mlflow/
 mlruns/
 *.pt
+.venv/
+.trash/
+notebooks/creating_datasets.ipynb

@@ -19,9 +19,9 @@ class NvidiaSegformer(BaseModel):
         self.model.segformer.encoder.patch_embeddings[0].proj = self.adapt_conv_layer(self.model.segformer.encoder.patch_embeddings[0].proj, in_channels=self.config.num_channels)
         
         # Freezing encoder except of first layer
-        for name, param in self.model.segformer.encoder.named_parameters():
-            if "patch_embeddings.0.projection" not in name:
-                param.requires_grad = False
+        # for name, param in self.model.segformer.encoder.named_parameters():
+        #     if "patch_embeddings.0.projection" not in name:
+        #         param.requires_grad = False
 
         self.init_training_components()
         self.model.to(self.device)

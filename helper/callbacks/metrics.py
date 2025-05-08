@@ -60,8 +60,10 @@ def get_iou(pred, label):
     # print(label)
     tp, fp, fn, tn = smp.metrics.get_stats(pred, label, mode='binary')
 
-    #print(f'batchatillon {smp.metrics.iou_score(tp, fp, fn, tn, reduction='micro')}')
-    return smp.metrics.iou_score(tp, fp, fn, tn, reduction='micro')
+    result = smp.metrics.iou_score(tp, fp, fn, tn, reduction='micro')
+    if isnan(result):
+        return 0.0
+    return result
 
 
 # ! Probably shouldn't be used

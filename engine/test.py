@@ -17,7 +17,6 @@ def run_test(model_name, tags=None):
 
     # Загружаем путь до модели и саму модель
     file_path = get_model_file_path(model_name)
-    print(f"Looking in {file_path}")
 
     if "Unet" in model_name:
         model = UNet.load_model(model_name)
@@ -37,8 +36,7 @@ def run_test(model_name, tags=None):
         device=model.config.device,
         batch_size=model.config.batch_size,
         name=model.config.dataset_name,
-        channels=model.config.num_channels,
-        clahe=True
+        channels=model.config.num_channels
     )
 
     with mlflow.start_run(run_name=f"{model_name}_test"):

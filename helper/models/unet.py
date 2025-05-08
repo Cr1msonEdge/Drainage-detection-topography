@@ -26,8 +26,8 @@ class UNet(BaseModel):
             )
         elif type == 'Unet++':
             self.model = UnetPlusPlus(
-                encoder_name='resnet34',
-                encoder_weights=None,
+                encoder_name='resnet50',
+                encoder_weights='imagenet',
                 classes=2
             )
         else:
@@ -37,10 +37,11 @@ class UNet(BaseModel):
         self.model.encoder.conv1 = self.adapt_conv_layer(self.model.encoder.conv1, in_channels=self.config.num_channels)
 
         # Freezing layers except of first conv
-        # for param in self.model.encoder.parameters():
-        #     param.requires_grad = False
-        # for param in self.model.encoder.conv1.parameters():
-        #     param.requires_grad = True
+        # if type != 'Unet':
+        #     for param in self.model.encoder.parameters():
+        #         param.requires_grad = False
+        #     for param in self.model.encoder.conv1.parameters():
+        #         param.requires_grad = True
 
         self.init_training_components()
         self.model = self.model.to(self.device)

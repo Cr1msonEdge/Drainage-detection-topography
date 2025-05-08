@@ -12,8 +12,7 @@ DATASET_NAMES = [
 
 
 def get_dataset_folder(name=None):
-    # ? Probably add some default dataset in future
-    assert name is not None, "Dataset name shouldn't be empty"
+    assert name is not None, "Dataset name must not be empty"
     curr_file = Path(__file__).resolve()  
     current_dir = curr_file.parent.parent  # Getting project directory
     datasets_dir = current_dir / 'datasets'
@@ -39,8 +38,8 @@ def get_dataset(mode='train', name=None, device=None, channels=4, clahe=False, d
     Return dataset
     
     Params:
-    mode - train or test. If test, no augmentation is applied to images
-    name - name of the file for a dataset
+    mode: train or test. If test, no augmentation is applied to images
+    name: name of the file for a dataset
     """
     assert mode in ['train', 'test'], f"Mode {mode} is invalid."
     assert device in ['cpu', 'cuda', None], f"Device {device} is invalid."
@@ -78,8 +77,8 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
     Return dataloader
     
     Params:
-    mode - train or test. If test, no augmentation is applied to images
-    name - name of the file for a dataset
+    mode: train or test. If test, no augmentation is applied to images
+    name: name of the file for a dataset
     """
     assert mode in ['train', 'test', 'val'], f"Mode {mode} is invalid."
     assert device in ['cpu', 'cuda', None], f"Device {device} is invalid."
@@ -100,7 +99,6 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
         if "images.npy" in data_folder_content and "masks.npy" in data_folder_content:
             images = np.load(f"{data_dir}/images.npy")
             masks = np.load(f"{data_dir}/masks.npy")
-            
             if channels == 3:
                 images = images[:, :, :, :3]
                 

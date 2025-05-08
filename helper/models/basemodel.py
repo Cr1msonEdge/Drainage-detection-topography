@@ -234,7 +234,7 @@ class BaseModel:
         for images, masks in tqdm(dataloader, desc="Testing"):
             inputs, masks = images.to(device), masks.to(device).squeeze()
 
-            outputs = self.model(inputs)
+            outputs = self.compute_outputs(inputs)
             loss = self.compute_loss(outputs, masks)
 
             preds = torch.argmax(outputs, dim=1)
@@ -250,7 +250,7 @@ class BaseModel:
             total_batches += 1
 
         metrics = {
-            'loss': test_loss,
+            'loss': test_loss / total_batches,
             'acc': test_acc / total_batches,
             'prec': test_prec / total_batches,
             'recall': test_recall / total_batches,
