@@ -11,7 +11,7 @@ class DrainageDataset(Dataset):
     """
     Class to work with images 
     """
-    def __init__(self, images, masks, device=None, mode='train', clahe=True, dilate_mask=False):
+    def __init__(self, images, masks, device=None, mode='train'):
         self.images = np.array(images)
         self.masks = np.array(masks) 
         # Transforming
@@ -28,14 +28,6 @@ class DrainageDataset(Dataset):
         self.num_channels = self.images.shape[-1]  # For 3 or 4 channel images
         self.color_jitter = A.ColorJitter(brightness=0.2, contrast=0.2) 
 
-        self.clahe_contrast = clahe
-        self.clahe_clip_limit = 2.0
-        self.clahe_tile_grid = (8, 8)
-
-        # Mask dilation settings
-        self.dilate_mask = dilate_mask
-        self.dilation_kernel_size = 3
-        self.dilation_iterations = 1
         # Normalization 
         # self.rgb_mean = [0.624, 0.642, 0.624]
         # self.rgb_std = [0.2, 0.2, 0.2]
@@ -60,8 +52,6 @@ class DrainageDataset(Dataset):
         if self.num_channels == 4:
             dem = image[:, :, 3:]
 
-        if self.clahe_contrast:
-            rgb = self.apply_clahe_to_rgb(rgb)
 
         if self.mode == 'train':
             rgb_jittered = self.color_jitter(image=rgb)['image']
@@ -90,35 +80,11 @@ class DrainageDataset(Dataset):
         image_aug = data['image']
         mask = data['mask']
 
-        if self.dilate_mask:
-            mask = self.dilate_mask_fn(mask)
-
         image_aug = np.transpose(image_aug, (2, 0, 1))
         image = torch.tensor(image_aug, dtype=torch.float32)
         mask = torch.tensor(mask, dtype=torch.long)
 
         return image, mask
-
-    def apply_clahe_to_rgb(self, rgb):
-        """
-        Apply CLAHE to each channel separately
-        """
-        clahe = cv2.createCLAHE(clipLimit=self.clahe_clip_limit, tileGridSize=self.clahe_tile_grid)
-        rgb_clahe = np.zeros_like(rgb)
-        for i in range(3):
-            rgb_channel = (rgb[:, :, i] * 255).astype(np.uint8)
-            rgb_channel = clahe.apply(rgb_channel)
-            rgb_clahe[:, :, i] = rgb_channel
-        return rgb_clahe.astype(np.float32) / 255.0
-
-    def dilate_mask_fn(self, mask):
-        """
-        Dilate mask using OpenCV morphology
-        """
-        kernel = np.ones((self.dilation_kernel_size, self.dilation_kernel_size), np.uint8)
-        mask = mask.astype(np.uint8)
-        dilated = cv2.dilate(mask, kernel, iterations=self.dilation_iterations)
-        return dilated
 
     def get_images(self):
         return self.images

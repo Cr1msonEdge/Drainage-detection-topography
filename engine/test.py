@@ -31,13 +31,22 @@ def run_test(model_name, tags=None):
     print(f"Using config: {model.config}")
 
     # Загружаем тестовый даталоадер
-    test_loader = get_dataloader(
-        mode="test",
-        device=model.config.device,
-        batch_size=model.config.batch_size,
-        name=model.config.dataset_name,
-        channels=model.config.num_channels
-    )
+    if tags and 'dataset' in tags.keys():
+        test_loader = get_dataloader(
+            mode="test",
+            device=model.config.device,
+            batch_size=model.config.batch_size,
+            name=tags['dataset'],
+            channels=model.config.num_channels
+        )
+    else:
+        test_loader = get_dataloader(
+            mode="test",
+            device=model.config.device,
+            batch_size=model.config.batch_size,
+            name=model.config.dataset_name,
+            channels=model.config.num_channels
+        )
 
     with mlflow.start_run(run_name=f"{model_name}_test"):
         if tags:

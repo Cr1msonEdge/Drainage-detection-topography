@@ -230,34 +230,34 @@ class BaseModel:
         test_dice = 0.0
 
         device = self.config.device
+        with torch.no_grad():
+            for images, masks in tqdm(dataloader, desc="Testing"):
+                inputs, masks = images.to(device), masks.to(device).squeeze()
 
-        for images, masks in tqdm(dataloader, desc="Testing"):
-            inputs, masks = images.to(device), masks.to(device).squeeze()
+                outputs = self.compute_outputs(inputs)
+                loss = self.compute_loss(outputs, masks)
 
-            outputs = self.compute_outputs(inputs)
-            loss = self.compute_loss(outputs, masks)
+                preds = torch.argmax(outputs, dim=1)
 
-            preds = torch.argmax(outputs, dim=1)
+                test_loss += loss
+                test_iou += get_iou(preds, masks)
+                test_acc += get_acc(preds, masks)
+                test_prec += get_prec(preds, masks)
+                test_recall += get_recall(preds, masks)
+                test_f1 += get_f1(preds, masks)
+                test_dice += get_dice(preds, masks)
 
-            test_loss += loss
-            test_iou += get_iou(preds, masks)
-            test_acc += get_acc(preds, masks)
-            test_prec += get_prec(preds, masks)
-            test_recall += get_recall(preds, masks)
-            test_f1 += get_f1(preds, masks)
-            test_dice += get_dice(preds, masks)
+                total_batches += 1
 
-            total_batches += 1
-
-        metrics = {
-            'loss': test_loss / total_batches,
-            'acc': test_acc / total_batches,
-            'prec': test_prec / total_batches,
-            'recall': test_recall / total_batches,
-            'f1': test_f1 / total_batches,
-            'iou': test_iou / total_batches,
-            'dice': test_dice / total_batches
-        }
+            metrics = {
+                'loss': test_loss / total_batches,
+                'acc': test_acc / total_batches,
+                'prec': test_prec / total_batches,
+                'recall': test_recall / total_batches,
+                'f1': test_f1 / total_batches,
+                'iou': test_iou / total_batches,
+                'dice': test_dice / total_batches
+            }
 
 
         print("=== Test metrics ===")

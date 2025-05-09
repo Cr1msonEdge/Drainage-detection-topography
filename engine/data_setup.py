@@ -102,7 +102,7 @@ def get_dataloader(mode='train', name=None, device=None, batch_size=128, num_wor
             if channels == 3:
                 images = images[:, :, :, :3]
                 
-            data = DrainageDataset(images=images, masks=masks, mode=mode, clahe=clahe, dilate_mask=dilate_mask)
+            data = DrainageDataset(images=images, masks=masks, mode=mode)
             dataloader = DataLoader(dataset=data, batch_size=batch_size, num_workers=num_workers)
             
             return dataloader
