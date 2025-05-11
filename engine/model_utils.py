@@ -20,7 +20,7 @@ def get_model_folder(name, verbose=-1):
     verbose: if -1, no prints are allowed. If 0, only errors are printed. If 1, everything is printed
     """
     assert name is not None, "Model name can't be None."
-    assert name in MODEL_NAMES, "Model {name} not found in available models' list."
+    assert name in MODEL_NAMES, f"Model {name} not found in available models' list."
     
     curr_file = Path(__file__).resolve()
     saved_models_dir = curr_file.parent.parent / 'helper' / 'models' / 'saved'

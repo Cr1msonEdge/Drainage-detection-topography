@@ -177,3 +177,4 @@ mlruns/
 .venv/
 .trash/
 notebooks/creating_datasets.ipynb
+pred_example/

@@ -9,12 +9,12 @@ from helper.models.config import Config
 
 class NvidiaSegformer(BaseModel):
     def __init__(self, config: Config=None):
-        super().__init__('NvidiaSegformer', config)
+        super().__init__('Segformer', config)
 
         self.id2label = {0: 'background', 1: 'drainage'}
         self.label2id = {label: id for id, label in self.id2label.items()}
         
-        self.model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b1-finetuned-ade-512-512", num_labels=2, ignore_mismatched_sizes=True, id2label=self.id2label, label2id=self.label2id)
+        self.model = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b0-finetuned-ade-256-256", num_labels=2, ignore_mismatched_sizes=True, id2label=self.id2label, label2id=self.label2id)
         
         self.model.segformer.encoder.patch_embeddings[0].proj = self.adapt_conv_layer(self.model.segformer.encoder.patch_embeddings[0].proj, in_channels=self.config.num_channels)
         
@@ -27,11 +27,14 @@ class NvidiaSegformer(BaseModel):
         self.model.to(self.device)
         
         self.feature_extractor = SegformerFeatureExtractor(do_resize=True, size=(256, 256))
-    
-    def forward(self, images):
+
+    def compute_outputs(self, images):
         outputs = self.model(pixel_values=images).logits
         outputs = F.interpolate(outputs, size=(256, 256), mode='bilinear', align_corners=False)
         return outputs
+
+    def forward(self, images):
+        pass
 
     # def train_epoch(self, dataloader, criterion, optimizer, device):
     #     self.model.train()

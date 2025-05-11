@@ -1,29 +1,21 @@
 import rasterio
-from torch import save, load, unsqueeze, argmax, no_grad, stack, is_tensor
-from torch.nn import CrossEntropyLoss, Conv2d, init
+from torch import unsqueeze, argmax, no_grad
+from torch.nn import Conv2d, init
+from torch.nn.init import kaiming_normal_, xavier_normal_
 from torch.utils.data import DataLoader
 import pathlib
 from pathlib import Path
-import numpy as np
-import json
-
 from engine.model_utils import get_model_folder
 from helper.callbacks.visualize import show_prediction
 from helper.dataobj import *
-from helper.callbacks.metrics import get_iou
-from helper.models.config import Config
-from os import listdir
-from os.path import isfile, join
+
 from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use("Agg")
-from IPython import display
 from tqdm import tqdm
 import abc
 from helper.models.config import Config
-from torch.optim import Adam, AdamW, SGD
-from torch.optim.lr_scheduler import ReduceLROnPlateau, MultiStepLR
 import os
 import time
 from torch import nn
@@ -87,8 +79,12 @@ class BaseModel:
 
             # Остальные инициализируем нормально
             if in_channels > 3:
-                init.normal_(new_conv.weight[:, 3:, :, :], mean=0.0, std=0.01)
+                if self.model_name == 'Segformer':
+                    xavier_normal_(new_conv.weight[:, 3:, :, :])
+                else:
+                    kaiming_normal_(new_conv.weight[:, 3:, :, :], mode='fan_in', nonlinearity='relu')
 
+                # init.normal_(new_conv.weight[:, 3:, :, :], mean=0.0, std=0.01)
             if conv_layer.bias is not None:
                 new_conv.bias.copy_(conv_layer.bias)
 
@@ -100,6 +96,8 @@ class BaseModel:
     def configure_optimizer(self):
         if self.config.optimizer.lower() == "adam":
             return torch.optim.Adam(self.model.parameters(), lr=self.config.learning_rate)
+        elif self.config.optimizer.lower() == 'adamw':
+            return torch.optim.AdamW(self.model.parameters(), lr=self.config.learning_rate)
         elif self.config.optimizer.lower() == "sgd":
             return torch.optim.SGD(self.model.parameters(), lr=self.config.learning_rate, momentum=0.9)
         else:

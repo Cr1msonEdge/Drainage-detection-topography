@@ -31,7 +31,7 @@ class Config:
 
         # Setting optimizer        
         assert opt in ['Adam', 'AdamW', 'SGD', None], f"Optimizer {opt} is not from list of Optimizers"
-        self.optimizer = opt if opt is not None else 'Adam'
+        self.optimizer = opt if opt is not None else 'AdamW'
 
         # Setting scheduler
         assert self.scheduler in ['Plateau', 'MultistepLR', None]
