@@ -33,7 +33,7 @@ def get_dataset_folder(name=None):
     return datasets_dir / name
         
 
-def get_dataset(mode='train', name=None, device=None, channels=4, clahe=False, dilate_mask=False):
+def get_dataset(mode='train', name=None, device=None, channels=4):
     """
     Return dataset
     
@@ -62,7 +62,7 @@ def get_dataset(mode='train', name=None, device=None, channels=4, clahe=False, d
             if channels == 3:
                 images = images[:, :, :, :3]
             
-            data = DrainageDataset(images=images, masks=masks, mode=mode, clahe=clahe, dilate_mask=dilate_mask)
+            data = DrainageDataset(images=images, masks=masks, mode=mode)
             
             return data
 

@@ -178,3 +178,4 @@ mlruns/
 .trash/
 notebooks/creating_datasets.ipynb
 pred_example/
+tests_on_full_image/

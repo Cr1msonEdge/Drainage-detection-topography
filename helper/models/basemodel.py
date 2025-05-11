@@ -1,3 +1,4 @@
+import numpy as np
 import rasterio
 from torch import unsqueeze, argmax, no_grad
 from torch.nn import Conv2d, init
@@ -349,7 +350,6 @@ class BaseModel:
         plt.ylabel('Значение')
         plt.title('Результаты тестирования')
 
-        # Добавим подписи на столбцах
         for bar in bars:
             yval = bar.get_height()
             plt.text(bar.get_x() + bar.get_width() / 2, yval, f'{yval:.2f}', va='bottom', ha='center')
@@ -363,71 +363,112 @@ class BaseModel:
 
         plt.close()
 
-    def split_tif_into_patches(self, image, patch_size=256, pad=False):
+    def split_image(self, image, patch_size=256, stride=128):
         """
         Return patches from cut image
         """
-        h, w, c = image.shape
-        if pad:
-            pad_h = (patch_size - h % patch_size) % patch_size
-            pad_w = (patch_size - w % patch_size) % patch_size
-            padded_image = np.pad(image, ((0, pad_h), (0, pad_w), (0, 0)), mode='constant', constant_values=0)
-        else:
-            padded_image = image
-
         patches = []
-        for i in range(0, padded_image.shape[0], patch_size):
-            for j in range(0, padded_image.shape[1], patch_size):
-                patch = padded_image[i: i + patch_size, j: j + patch_size]
-                patches.append(patch)
+        h, w = image.shape[:2]
+        y_positions = list(range(0, h - patch_size + 1, stride))
+        x_positions = list(range(0, w - patch_size + 1, stride))
+
+        for y in range(0, h - patch_size + 1, stride):
+            for x in range(0, w - patch_size + 1, stride):
+                patch = image[y:y + patch_size, x:x + patch_size]
+                patches.append((x, y, patch))
+
+        if y_positions[-1] + patch_size < h:
+            y_positions.append(h - patch_size)
+        if x_positions[-1] + patch_size < w:
+            x_positions.append(w - patch_size)
 
         return patches
 
-    @staticmethod
-    def reconstruct_mask_from_patches(patches, image_shape, patch_size=256):
+    def merge_patches(self, patches: list, image_shape: tuple, patch_size: int = 256, stride: int = 128) -> np.ndarray:
+        """
+        Merge patches into one image with overlapping
+        """
         h, w = image_shape
-        reconstructed_image = np.zeros((h, w), dtype=np.uint8)
-        patch_idx = 0  # Iterating over patches
+        full_mask = np.zeros((h, w), dtype=np.float32)
+        weight_mask = np.zeros((h, w), dtype=np.float32)
 
-        for i in range(0, h, patch_size):
-            for j in range(0, w, patch_size):
-                patch = patches[patch_idx]
-                reconstructed_image[i: i + patch_size, j: j + patch_size] = patch
-                patch_idx += 1
+        for x, y, patch_pred in patches:
+            ph, pw = patch_pred.shape
+            full_mask[y:y + ph, x:x + pw] = np.logical_or(
+                full_mask[y:y + ph, x:x + pw],
+                patch_pred.astype(bool)
+            )
 
-        return reconstructed_image
+        return full_mask.astype()
 
+    def predict_image(self, image_path, patch_size=256, stride=128, threshold=0.5, device='cuda', out_filename=None, timed=True, return_mask=False):
+        """
+        Predicts by whole image. Returns
+        """
+        self.model.eval()
 
-    def predict_from_tif(self, tif_path: str, threshold: float = 0.3, patch_size: int = 256, return_mask: bool = True, save_path=None):
-        # 1. Нарезаем изображение на патчи
-        with rasterio.open(tif_path) as src:
-            image = src.read([1, 2, 3]).transpose(1, 2, 0)  # Read RGB channels
-            h, w, c = image.shape
+        with rasterio.open(image_path) as src:
+            image = src.read()
+            image = np.transpose(image, (1, 2, 0))
+            if out_filename is not None:
+                profile = src.profile
+                profile.update(
+                    dtype=rasterio.uint8,
+                    count=1,
+                    nodata=0
+                )
+                
+        image = image.astype(np.float32) / 255.0
+        orig_h, orig_w = image.shape[:2]
+        patches = self.split_image(image, patch_size=patch_size, stride=stride)
 
-        # Step 2: Split the image into patches (with optional padding if needed)
-        patches = self.split_tif_into_patches(image, patch_size, pad=True)
+        coords = []
+        tensor_patches = []
+        for x, y, patch in patches:
+            coords.append((x, y))
+            tensor = np.transpose(patch, (2, 0, 1))  # C, H, W
+            tensor_patches.append(tensor)
 
-        # Step 3: Prepare batches for inference
-        model = self.model  # Assuming self.model is the trained model
-        pred_patches = []
+        prob_map = torch.zeros((orig_h, orig_w), dtype=torch.float32, device=device)
+        batch_size = 64
+        num_patches = len(tensor_patches)
+        
+        if timed:
+            start = time.time()
+        
+        for i in range(0, num_patches, batch_size):
+            batch = np.stack(tensor_patches[i:i + batch_size])
+            batch_tensor = torch.from_numpy(batch).float().to(device)  # [B, C, H, W]
 
-        for patch in patches:
-            patch_tensor = torch.from_numpy(patch).float().unsqueeze(0).permute(0, 3, 1, 2).to(self.device)
             with torch.no_grad():
-                pred = model.predict(patch_tensor)
-            pred_patches.append(pred.cpu().numpy().squeeze())  # Convert predictions to numpy
+                output = self.compute_outputs(batch_tensor)  # [B, 1, H, W]
+                probs = output[:, 1, ...]
+                
+            for j in range(probs.shape[0]):
+                prob_patch = probs[j]
+                x, y = coords[i + j]
+                h = min(patch_size, orig_h - y)
+                w = min(patch_size, orig_w - x)
+                prob_patch = prob_patch[:h, :w]
 
-        # Step 4: Reconstruct the full mask from the predicted patches
-        reconstructed_mask = self.reconstruct_mask_from_patches(pred_patches, (h, w), patch_size)
-
-        # Step 5: Optionally save the reconstructed mask to a file
-        if save_path:
-            with rasterio.open(save_path, 'w', driver='GTiff', count=1, dtype='uint8', width=w, height=h) as dst:
-                dst.write(reconstructed_mask, 1)
-
-        # Step 6: Return the reconstructed mask if needed
+                # update by max
+                prob_map[y:y+h, x:x+w] = torch.maximum(
+                    prob_map[y:y+h, x:x+w],
+                    prob_patch
+                )
+        
+        if timed:
+            print(f"Time to predict: {(time.time() - start):.2f} seconds")                
+        
+        # Merging into tif
+        final_mask = (prob_map > threshold).cpu().numpy().astype(np.uint8)
+        
+        if out_filename:
+            with rasterio.open(out_filename, 'w', **profile) as dst:
+                dst.write(final_mask.astype(rasterio.uint8), 1)
+        
         if return_mask:
-            return reconstructed_mask
+            return final_mask
 
             
 #     def save(self):

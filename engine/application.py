@@ -1,6 +1,9 @@
 import numpy as np
 import rasterio
 import os
+import torch
+from helper.callbacks.metrics import get_iou, get_acc, get_prec, get_recall, get_dice, get_f1
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, jaccard_score
 from rasterio.windows import Window
 from pathlib import Path
 from tqdm import tqdm
@@ -61,4 +64,36 @@ def create_patch_dataset_from_tif(image_path: str, mask_path: str, name: str, pa
     np.save(os.path.join(output_dir, "masks.npy"), mask_patches)
 
     print(f"Saved {len(image_patches)} patches in {output_dir}")
+
+
+def get_tif_metric(label_image: str, pred_image: str, verbose=True):
+    """
+    Return metrics of predicted tif file.
+    
+    Params:
+    label_image: path to ground truth image
+    source_image: path to predicted image
+    """
+    
+    with rasterio.open(pred_image) as src:
+        pred = torch.tensor(src.read(1), dtype=torch.uint8).unsqueeze(0).unsqueeze(0)
+    
+    with rasterio.open(label_image) as src:
+        label = torch.tensor(src.read(1), dtype=torch.uint8).unsqueeze(0).unsqueeze(0)
+    
+    metrics = {
+        'accuracy': get_acc(pred, label),
+        'precision': get_prec(pred, label),
+        'recall': get_recall(pred, label),
+        'f1': get_f1(pred, label),
+        'iou': get_iou(pred, label),
+        'dice': get_dice(pred, label)
+    }
+    
+    if verbose:
+        print("=== Got result: ===")
+        for key, value in metrics.items():
+            print(f"{key} - {value:.2f}")
+    
+    return metrics
     
