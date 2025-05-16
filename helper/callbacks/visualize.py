@@ -208,57 +208,45 @@ def compare_models_sns_barplot(models, metrics_dict, hyperparams_dict):
     plt.show()
 
 
-def show_prediction(image, pred, mask, show_intersection=False):
+def show_prediction(image, pred, mask, num_channels: int):
     # Transform the prediction and mask to numpy
     pred = pred.numpy()
     
-    if not show_intersection:
+    if num_channels == 3:
         # Showing original image, mask, prediction 
-        intersection = logical_and(pred, mask)
         fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(15, 10))
         axs[0].imshow(transpose(image, (1, 2, 0))[:, :, :3])
         axs[0].set_title("Original Image")
         axs[0].axis('off')
         
-        # Prediction, mask and intersection are 256 x 256
-        axs[1].imshow(pred, cmap='gray')
-        axs[1].set_title("Model Prediction")
+        axs[1].imshow(mask, cmap='gray')
+        axs[1].set_title("Ground Truth Mask")
         axs[1].axis('off')
-
-        print(f"mask: {mask.shape}")
-
-        axs[2].imshow(mask, cmap='gray')
-        axs[2].set_title("Ground Truth Mask")
+        
+        axs[2].imshow(pred, cmap='gray')
+        axs[2].set_title("Model Prediction")
         axs[2].axis('off')
-        print(f"inter: {intersection.shape}")
-    
-    else:
-        # Showing original image, mask, prediction and intersection 
-        # Creating the intersection of the mask and
-        intersection = logical_and(pred, mask)
 
+    elif num_channels == 4:
+        # Showing original RGB image, DEM, mask and prediction
         # Showing images
         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(15, 10))
 
-        # Image should be 256 x 256 x 3
-        axs[0][0].imshow(transpose(image, (1, 2, 0)))
+        axs[0][0].imshow(transpose(image, (1, 2, 0))[:, :, :3])
         axs[0][0].set_title("Original Image")
         axs[0][0].axis('off')
         
         # Prediction, mask and intersection are 256 x 256
-        axs[0][1].imshow(pred, cmap='gray')
-        axs[0][1].set_title("Model Prediction")
+        axs[0][1].imshow(transpose(image, (1, 2, 0))[:, :, 3], cmap='terrain')
+        axs[0][1].set_title("DEM")
         axs[0][1].axis('off')
-
-        print(f"mask: {mask.shape}")
 
         axs[1][0].imshow(mask, cmap='gray')
         axs[1][0].set_title("Ground Truth Mask")
         axs[1][0].axis('off')
-        print(f"inter: {intersection.shape}")
 
-        axs[1][1].imshow(intersection, cmap='gray')
-        axs[1][1].set_title("Intersection (Prediction & Mask)")
+        axs[1][1].imshow(pred, cmap='gray')
+        axs[1][1].set_title("Model's prediction")
         axs[1][1].axis('off')
     
         
@@ -272,7 +260,6 @@ def show_predictions(image, preds: list, models_names: list):
     assert len(preds) == len(models_names), "Number of predictions and models names should be equal."
     ncols = 2
     nrows = len(preds) // 2 + len(preds) % 2
-    print(nrows, ncols, "goida")
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(15, 10))
     
     axs[0][0].imshow(transpose(image, (1, 2, 0)))

@@ -124,7 +124,7 @@ class BaseModel:
     def compute_outputs(self, images):
         pass
 
-    def predict(self, image, mask, device, show_full=False, show=False):
+    def predict(self, image, mask, device, show=False):
         """
         Return model's predict.
 
@@ -135,7 +135,7 @@ class BaseModel:
             show_full: if True shows original mask, prediction and intersection
             show: if True plots the prediction
         """
-        assert not(show_full and not show), "Show can't be true, while show_full is mode is active"
+
         self.model.eval()
 
         # Converting the images into tensors and send them to the desired device.
@@ -146,10 +146,7 @@ class BaseModel:
         with no_grad():
             output = self.compute_outputs(image)
             pred = argmax(output, dim=1).squeeze(0).cpu()  # Get the prediction
-            if show_full:
-                show_prediction(image.squeeze().cpu(), pred, mask.squeeze().cpu(), show_intersection=True)
-            elif show:
-                show_prediction(image.squeeze().cpu(), pred, mask.squeeze().cpu(), show_intersection=False)
+            show_prediction(image.squeeze().cpu(), pred, mask.squeeze().cpu(), num_channels=image.shape[1])
 
         return pred
 

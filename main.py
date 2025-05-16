@@ -15,7 +15,7 @@ from engine.test import *
 if __name__ == "__main__":
     # experiment = mlflow.get_experiment_by_name("ee2_con")
     # print(experiment.experiment_id)
-    model_name = "DeepLabV3"
+    model_name = "Segformer"
     dataset_name = 'ver8'
     num_channels = 4
     config = Config(num_epochs=200, dataset_name=dataset_name, num_channels=num_channels)

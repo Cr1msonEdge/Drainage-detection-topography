@@ -41,7 +41,7 @@ def get_dataset(mode='train', name=None, device=None, channels=4):
     mode: train or test. If test, no augmentation is applied to images
     name: name of the file for a dataset
     """
-    assert mode in ['train', 'test'], f"Mode {mode} is invalid."
+    assert mode in ['train', 'test', 'val'], f"Mode {mode} is invalid."
     assert device in ['cpu', 'cuda', None], f"Device {device} is invalid."
     
     if device is None:
