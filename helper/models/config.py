@@ -55,7 +55,6 @@ class Config:
         assert self.num_channels in [3, 4]
         
         # Setting criterions 
-        # ? Add another loss function?
         assert crit in [None, 'CrossEntropy'], f"Criterion {crit} is not from list of Criterions"
         self.criterion = crit if crit is not None else "CrossEntropy"
         

@@ -15,7 +15,6 @@ def run_test(model_name, tags=None):
     # assert model_name in MODEL_NAMES, f"Model {model_name} is not found."
     print("=== Starting test ===")
 
-    # Загружаем путь до модели и саму модель
     file_path = get_model_file_path(model_name)
 
     if "Unet" in model_name:
@@ -30,7 +29,6 @@ def run_test(model_name, tags=None):
     print("=== Model loaded successfully ===")
     print(f"Using config: {model.config}")
 
-    # Загружаем тестовый даталоадер
     if tags and 'dataset' in tags.keys():
         test_loader = get_dataloader(
             mode="test",

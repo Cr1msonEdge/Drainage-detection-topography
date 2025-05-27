@@ -70,35 +70,6 @@ def get_model_file_path(name, verbose=-1):
         raise Exception(f"Model {name} is not found.")
 
 
-# ! Deprecated
-# def save_model(model, run_id, verbose=-1):
-#     model_name = model.get_name()
-#     try:
-#         model_folder = get_model_folder(model_name)
-#     except:
-#         print("Got wrong model name or model is unknown. Returning")
-#         return
-    
-#     file_name = f"{model_folder}-{run_id}.pt"
-#     save(model.state_dict(), file_name)
-    
-#     if verbose != -1:
-#         print('Save completed.')
-    
-
-# def load_state_dict(name):
-#     model_name = name[:name.find('-')]
-#     assert model_name in MODEL_NAMES, f"Model name {name} is not correct."
-#     try:
-#         model_folder = get_model_folder(model_name)
-#     except:
-#         print("Got wrong model name or model is unknown. Returning")
-#         return
-    
-#     state_dict = load(model_folder / model_name)
-#     return state_dict
-
-
 if __name__ == '__main__':
     print(get_model_file_path('Unet-12234.ckpt', verbose=1))
     
